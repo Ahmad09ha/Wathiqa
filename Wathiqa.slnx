@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/Wathiqa.Api/Wathiqa.Api.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,75 @@
+﻿# Wathiqa (وثيقة) — .NET / Next.js / PostgreSQL
+# Keep this file in the repository root.
+
+# Local development environment and database (contains private credentials/data)
+/.local/
+/pgdata/
+/postgres-data/
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+
+# ASP.NET Core / .NET build and IDE generated files
+**/bin/
+**/obj/
+**/TestResults/
+*.user
+*.suo
+*.rsuser
+*.sln.docstates
+*.DotSettings.user
+*.iml
+.vs/
+.idea/
+.vscode/
+
+# Node.js / Next.js / Vercel / TypeScript output
+**/node_modules/
+**/.next/
+**/.turbo/
+**/.vercel/
+**/.pnp/
+**/.pnp.*
+**/out/
+**/dist/
+**/build/
+**/*.tsbuildinfo
+
+# Reports and tool caches
+**/coverage/
+**/test-results/
+**/playwright-report/
+*.trx
+*.coverage
+*.coverage.*
+lcov.info
+.cache/
+.npm/
+
+# Secrets, private keys and local-only application config
+*.pem
+*.pfx
+*.p12
+*.key
+*.snk
+**/appsettings.*.local.json
+**/appsettings.*.Secrets.json
+
+# Local database backups and dump files (keep SQL source/migrations tracked)
+*.dump
+*.backup
+
+# Logs and temporary/debug output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.tmp
+*.temp
+
+# Operating system
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,15 @@
+﻿services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wathiqa_docs}
+      POSTGRES_USER: ${POSTGRES_USER:-wathiqa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - wathiqa_pgdata:/var/lib/postgresql/data
+
+volumes:
+  wathiqa_pgdata:
