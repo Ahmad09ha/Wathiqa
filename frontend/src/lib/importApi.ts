@@ -274,6 +274,23 @@ const ArabicErrors: Record<string, string> = {
   ,transfer_not_active: "الحوالة لم تعد فعّالة."
   ,transfer_already_voided: "تم إبطال القيد السابق لهذه الحوالة."
   ,order_cancelled: "الطلب ملغى ولا يقبل إضافة حوالات جديدة."
+  ,invalid_tenant_onboarding: "راجع بيانات الشركة، بريد المدير، مدة الوصول، وسبب الإنشاء."
+  ,tenant_slug_taken: "المعرّف مستخدم لشركة أخرى. اختر معرّفاً فريداً."
+  ,stale_platform_revision: "تم تعديل هذه الشركة من جلسة أخرى. حدّث الصفحة قبل إعادة الإجراء."
+  ,no_status_change: "حالة الشركة لم تتغير. حدّث البيانات قبل الحفظ."
+  ,no_access_change: "مدة الوصول المختارة مطابقة للقيمة الحالية."
+  ,reason_required: "العملية تحتاج سبباً موثّقاً لا يقل عن 8 أحرف."
+  ,invalid_access_change: "تحقق من تاريخ انتهاء الوصول وسبب التعديل."
+  ,cannot_disable_last_tenant_admin: "لا يمكن تعطيل آخر مدير نشط للشركة. فعّل مديراً بديلاً أولاً."
+  ,invalid_manual_plan: "تحقق من اسم الباقة ومعرّفها ومدتها وسبب الإنشاء."
+  ,manual_plan_code_taken: "معرّف هذه الباقة مستخدم مسبقاً."
+  ,manual_plan_unchanged: "حالة الباقة لم تتغير."
+  ,manual_plan_unavailable: "الباقة غير موجودة أو غير فعّالة. اختر باقة نشطة."
+  ,invalid_manual_subscription: "اختر باقة واكتب سبباً موثّقاً للتعديل."
+  ,manual_subscription_same_plan: "الاشتراك مربوط بالفعل بهذه الباقة. استخدم التجديد لتمديده."
+  ,manual_subscription_not_renewable: "هذا الاشتراك غير قابل للتجديد. يجب أن يكون نشطاً ومحدّد المدة وباقته فعّالة."
+  ,manual_subscription_already_ended: "الاشتراك منتهٍ بالفعل أو غير موجود."
+  ,subscription_managed: "هذه الشركة مرتبطة باشتراك يدوي. استخدم إدارة الاشتراك بدل تعديل تاريخ الوصول مباشرة."
 };
 async function acquireCsrf(): Promise<string> {
   if (csrfValue) return csrfValue;

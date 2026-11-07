@@ -139,8 +139,9 @@ try{
   passed("Browser delete confirmation soft-deletes company");
   await evalJs('document.querySelector("a.im-nav-link[href=\\"/import/team\\"]").click()');
   await waitFor(()=>evalJs("location.pathname==='/import/team' && document.body.innerText.includes('أعضاء الشركة')"),13000);
-  if(!await evalJs("document.body.innerText.includes('دعوة موظف') && document.body.innerText.includes('الصلاحيات المالية')"))
-    throw new Error("Team management features are missing");
+  // The route heading can render before the client-side team controls finish
+  // hydration; assert real controls after they appear, not at route-change time.
+  await waitFor(()=>evalJs("document.body.innerText.includes('دعوة موظف') && document.body.innerText.includes('الصلاحيات المالية')"),14000);
   passed("Admin staff/permission management renders");
   await command("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await sleep(600);

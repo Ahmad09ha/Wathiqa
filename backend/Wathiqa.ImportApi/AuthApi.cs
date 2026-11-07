@@ -143,8 +143,13 @@ public static class AuthApi
                     error = "invalid_user_or_password",
                     details = created.Errors.Select(e => e.Code).ToArray()
                 });
-            var roleResult = await users.AddToRoleAsync(user, "Staff");
-            if (!roleResult.Succeeded) throw new InvalidOperationException("Staff role setup failed.");
+            // Only the privileged server-controlled platform onboarding flow
+            // can create a TenantInvitation with Role=Admin. Tenant Admin
+            // endpoints always create Staff invitations.
+            if (invite.Role is not ("Admin" or "Staff"))
+                throw new InvalidOperationException("Invalid invitation role.");
+            var roleResult = await users.AddToRoleAsync(user, invite.Role);
+            if (!roleResult.Succeeded) throw new InvalidOperationException("Invited role setup failed.");
             await transaction.CommitAsync();
             return Results.Created("/api/auth/me", new { message = "تم إنشاء حساب الموظف.", user.Id });
         }).AllowAnonymous().RequireRateLimiting("auth");

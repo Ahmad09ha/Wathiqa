@@ -129,9 +129,36 @@ builder.Services.AddIdentityCore<ImportUser>(options =>
     .AddClaimsPrincipalFactory<TenantClaimsFactory>()
     .AddEntityFrameworkStores<ImportDb>()
     .AddDefaultTokenProviders();
+builder.Services.AddScoped<IPasswordHasher<PlatformOperator>, PasswordHasher<PlatformOperator>>();
 
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     .AddIdentityCookies();
+builder.Services.AddAuthentication()
+    .AddCookie(PlatformSecurity.Scheme, options =>
+    {
+        options.Cookie.Name = builder.Environment.IsDevelopment()
+            ? "wathiqa.platform.session" : "__Secure-wathiqa.platform.session";
+        // Browser calls go through /import-api; a merchant's APIs never need
+        // or receive a platform identity. In production use HTTPS-only.
+        options.Cookie.Path = "/import-api/api/platform";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+        options.ExpireTimeSpan = TimeSpan.FromHours(4);
+        options.SlidingExpiration = false;
+        options.Events.OnValidatePrincipal = PlatformSecurity.ValidateSession;
+        options.Events.OnRedirectToLogin = ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
 builder.Services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.Zero);
 builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
 {
@@ -161,7 +188,7 @@ builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.Applic
         var db = ctx.HttpContext.RequestServices.GetRequiredService<ImportDb>();
         var now = DateTime.UtcNow;
         var allowed = await db.Users.AsNoTracking().AnyAsync(u =>
-            u.Id == userId && u.TenantId == tenantId &&
+            u.Id == userId && u.TenantId == tenantId && u.IsActive && u.Tenant.IsActive &&
             (u.Tenant.AccessExpiresAtUtc == null || u.Tenant.AccessExpiresAtUtc > now));
         if (!allowed)
         {
@@ -188,7 +215,12 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("TenantAdmin", policy => policy.RequireAuthenticatedUser()
         .AddRequirements(new TenantRequirement(TenantPermission.Admin)))
     .AddPolicy("CanManagePayments", policy => policy.RequireAuthenticatedUser()
-        .AddRequirements(new TenantRequirement(TenantPermission.ManagePayments)));
+        .AddRequirements(new TenantRequirement(TenantPermission.ManagePayments)))
+    .AddPolicy(PlatformSecurity.Policy, policy => policy
+        .AddAuthenticationSchemes(PlatformSecurity.Scheme)
+        .RequireAuthenticatedUser()
+        .RequireRole(PlatformSecurity.Role)
+        .RequireClaim("platform_control", "true"));
 builder.Services.AddScoped<IAuthorizationHandler, TenantAccessHandler>();
 
 builder.Services.AddAntiforgery(options =>
@@ -248,6 +280,11 @@ if (seedAccessCli || string.Equals(
     await AccessAccountSeeder.RunAsync(app.Services);
     if (seedAccessCli) return;
 }
+if (args.Contains("--seed-superadmin", StringComparer.OrdinalIgnoreCase))
+{
+    await PlatformSuperAdminSeeder.RunAsync(app.Services);
+    return;
+}
 app.UseAuthentication();
 
 // Cross-site request forgery protection also covers JSON, PUT and DELETE.
@@ -295,6 +332,8 @@ app.MapGet("/api/auth/csrf", (HttpContext context, IAntiforgery antiforgery) =>
 }).AllowAnonymous();
 
 AuthApi.Map(app);
+PlatformApi.Map(app);
+ManualSubscriptionsApi.Map(app);
 CompanyApi.Map(app);
 OrderApi.Map(app);
 PaymentApi.Map(app);

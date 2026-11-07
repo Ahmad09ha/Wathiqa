@@ -32,5 +32,14 @@ if [ "${1:-}" = '--seed-access-accounts' ]; then
   export WATHIQA_UNLIMITED_EMAIL="$(cat /run/secrets/import_unlimited_email)"
   export WATHIQA_UNLIMITED_PASSWORD="$(cat /run/secrets/import_unlimited_password)"
 fi
+if [ "${1:-}" = '--seed-superadmin' ]; then
+  for required in superadmin_email superadmin_password; do
+    file="/run/secrets/import_${required}"
+    [ -s "$file" ] || { echo "Missing SuperAdmin secret: $required" >&2; exit 1; }
+  done
+  export WATHIQA_SUPERADMIN_EMAIL="$(cat /run/secrets/import_superadmin_email)"
+  export WATHIQA_SUPERADMIN_PASSWORD="$(cat /run/secrets/import_superadmin_password)"
+  export WATHIQA_SUPERADMIN_DISPLAY_NAME='Wathiqa Platform Owner'
+fi
 unset db_password
 exec dotnet /app/Wathiqa.ImportApi.dll "$@"

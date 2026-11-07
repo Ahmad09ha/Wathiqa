@@ -49,6 +49,8 @@ services:
       - import_trial_password
       - import_unlimited_email
       - import_unlimited_password
+      - import_superadmin_email
+      - import_superadmin_password
     environment:
       WATHIQA_DB_PASSWORD_FILE: /run/secrets/import_db_password
       WATHIQA_DP_PASSWORD_FILE: /run/secrets/import_dp_password
@@ -141,6 +143,10 @@ secrets:
     file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_unlimited_email
   import_unlimited_password:
     file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_unlimited_password
+  import_superadmin_email:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_superadmin_email
+  import_superadmin_password:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_superadmin_password
   import_s3_access_key:
     file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_s3_access_key
   import_s3_secret_key:

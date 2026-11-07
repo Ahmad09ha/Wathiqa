@@ -30,7 +30,8 @@ for dir in "$WATHIQA_PRIVATE_ROOT/documents" "$WATHIQA_PRIVATE_ROOT/keys" \
 done
 for filename in import_db_password import_dp_certificate.pfx import_dp_password \
   import_restic_password import_trial_email import_trial_password \
-  import_unlimited_email import_unlimited_password import_s3_access_key import_s3_secret_key; do
+  import_unlimited_email import_unlimited_password import_superadmin_email \
+  import_superadmin_password import_s3_access_key import_s3_secret_key; do
   [[ -s "$WATHIQA_SECRETS_ROOT/$filename" ]] || die "Missing secret file: $filename"
 done
 openssl pkcs12 -in "$WATHIQA_SECRETS_ROOT/import_dp_certificate.pfx" \

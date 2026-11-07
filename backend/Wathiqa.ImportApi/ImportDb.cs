@@ -34,6 +34,10 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
     public DbSet<OrderExpense> OrderExpenses => Set<OrderExpense>();
     public DbSet<PaymentReturn> PaymentReturns => Set<PaymentReturn>();
     public DbSet<PaymentAudit> PaymentAudits => Set<PaymentAudit>();
+    public DbSet<PlatformOperator> PlatformOperators => Set<PlatformOperator>();
+    public DbSet<PlatformAudit> PlatformAudits => Set<PlatformAudit>();
+    public DbSet<PlatformSubscriptionPlan> PlatformSubscriptionPlans => Set<PlatformSubscriptionPlan>();
+    public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
 
     // Fail closed in requests without an authenticated tenant.
     public Guid CurrentTenantId
@@ -48,11 +52,53 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
     protected override void OnModelCreating(ModelBuilder model)
     {
         base.OnModelCreating(model);
+        model.Entity<PlatformOperator>(e =>
+        {
+            e.ToTable("PlatformOperators");
+            e.HasIndex(x => x.Email).IsUnique();
+            e.Property(x => x.Email).HasMaxLength(254);
+            e.Property(x => x.DisplayName).HasMaxLength(160);
+            e.Property(x => x.PasswordHash).HasMaxLength(1024);
+            e.Property(x => x.SecurityStamp).HasMaxLength(64);
+            e.Property(x => x.Role).HasMaxLength(30);
+            e.ToTable(t => t.HasCheckConstraint("CK_Platform_OnlySuperAdmin", "\"Role\" = 'SuperAdmin'"));
+        });
+        model.Entity<PlatformAudit>(e =>
+        {
+            e.ToTable("PlatformAudits");
+            e.HasIndex(x => new { x.TenantId, x.OccurredAtUtc });
+            e.HasIndex(x => new { x.OperatorId, x.OccurredAtUtc });
+            e.Property(x => x.Action).HasMaxLength(100);
+            e.Property(x => x.Reason).HasMaxLength(1000);
+            e.HasOne<PlatformOperator>().WithMany().HasForeignKey(x => x.OperatorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            // No FK to a tenant: audit survives lifecycle and cannot cascade.
+        });
+        model.Entity<PlatformSubscriptionPlan>(e =>
+        {
+            e.ToTable("PlatformSubscriptionPlans", t => t.HasCheckConstraint(
+                "CK_PlatformPlan_Months", "\"DurationMonths\" IS NULL OR (\"DurationMonths\" BETWEEN 1 AND 36)"));
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(48);
+            e.Property(x => x.Name).HasMaxLength(120);
+        });
+        model.Entity<TenantSubscription>(e =>
+        {
+            e.ToTable("TenantSubscriptions");
+            e.HasIndex(x => x.TenantId).IsUnique();
+            e.HasIndex(x => x.PlanId);
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Plan).WithMany().HasForeignKey(x => x.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
         model.Entity<Tenant>(e =>
         {
             e.HasIndex(x => x.Slug).IsUnique();
             e.Property(x => x.Slug).HasMaxLength(80);
             e.Property(x => x.Name).HasMaxLength(180);
+            e.Property(x => x.PlatformRevision).IsConcurrencyToken();
+            e.ToTable(t => t.HasCheckConstraint("CK_Tenant_PlatformRevision", "\"PlatformRevision\" >= 1"));
         });
         model.Entity<ImportUser>(e =>
         {

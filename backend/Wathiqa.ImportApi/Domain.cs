@@ -12,6 +12,8 @@ public sealed class Tenant
     // Null means no automatic expiry. Non-null is a durable, absolute UTC
     // entitlement deadline: redeployments and logins must never renew it.
     public DateTime? AccessExpiresAtUtc { get; set; }
+    // Platform-only optimistic revision. Tenant business actions do not edit it.
+    public int PlatformRevision { get; set; } = 1;
 }
 
 public sealed class ImportUser : IdentityUser<Guid>

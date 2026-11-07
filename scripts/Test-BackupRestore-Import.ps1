@@ -48,6 +48,10 @@ SELECT 'Documents='||COUNT(*) FROM "StoredDocuments";
  SELECT 'PaymentReturns='||COUNT(*) FROM "PaymentReturns";
  SELECT 'OrderExpenses='||COUNT(*) FROM "OrderExpenses";
  SELECT 'PaymentAudits='||COUNT(*) FROM "PaymentAudits";
+  SELECT 'PlatformOperators='||COUNT(*) FROM "PlatformOperators";
+  SELECT 'PlatformAudits='||COUNT(*) FROM "PlatformAudits";
+  SELECT 'PlatformSubscriptionPlans='||COUNT(*) FROM "PlatformSubscriptionPlans";
+  SELECT 'TenantSubscriptions='||COUNT(*) FROM "TenantSubscriptions";
  SELECT 'Migrations='||COUNT(*) FROM "__EFMigrationsHistory";
 '@
  # Use a real SQL file; Windows quoting in -c mangles quoted EF table names.
@@ -147,11 +151,23 @@ try{
    # A backup of empty finance tables cannot prove financial recovery. Require
    # a temporary, tagged WP-05 fixture before this rehearsal (and clean it
    # afterwards with scripts/Cleanup-ImportDocumentsQa.ps1 -Apply).
-   foreach($name in @('PaymentTransfers','PaymentAllocations','PaymentReturns','OrderExpenses','PaymentAudits')){
+    foreach($name in @('PaymentTransfers','PaymentAllocations','PaymentReturns','OrderExpenses','PaymentAudits')){
      $item=@($sourceCounts | Where-Object {$_ -match ('^'+$name+'=(\d+)$')})
      if($item.Count -ne 1 -or [int](($item[0] -split '=')[1]) -lt 1){
        throw ('Restore QA needs a nonempty '+$name+' fixture; run Test-Payments.mjs first')
-     }
+    }
+    foreach($name in @('PlatformOperators','PlatformAudits')){
+      $item=@($sourceCounts | Where-Object {$_ -match ('^'+$name+'=(\d+)$')})
+      if($item.Count -ne 1 -or [int](($item[0] -split '=')[1]) -lt 1){
+        throw ('Restore QA needs nonempty '+$name+' rows. Seed local SuperAdmin and run Test-PlatformSuperAdmin.mjs first')
+      }
+    }
+    foreach($name in @('PlatformSubscriptionPlans','TenantSubscriptions')){
+      $item=@($sourceCounts | Where-Object {$_ -match ('^'+$name+'=(\d+)$')})
+      if($item.Count -ne 1 -or [int](($item[0] -split '=')[1]) -lt 1){
+        throw ('PA-02 restore QA needs nonempty '+$name+' fixtures. Run Test-PlatformSuperAdmin.mjs first')
+      }
+    }
    }
   $docCount=BackupFiles $docRoot (Join-Path $working 'private-documents') 'Document'
   $keyCount=BackupFiles $keyRoot (Join-Path $working 'data-protection-keys') 'Key'
@@ -184,6 +200,8 @@ try{
  $success=$true
   Write-Output 'WP09_BACKUP_RESTORE_REHEARSAL=PASS'
   Write-Output 'WP09_PAYMENT_LEDGER_DB_RESTORE_COUNTS=VERIFIED'
+  Write-Output 'PA01_PLATFORM_OPERATOR_AND_AUDIT_RESTORE=VERIFIED'
+  Write-Output 'PA02_MANUAL_SUBSCRIPTIONS_RESTORE=VERIFIED'
   Write-Output ('RESTORED_DOCUMENT_BLOBS='+$docCount)
   Write-Output ('RESTORED_DB_REFERENCED_BLOBS_SHA256_VERIFIED='+$verifiedRestored)
  Write-Output ('RESTORED_DATA_PROTECTION_KEY_FILES='+$keyCount)

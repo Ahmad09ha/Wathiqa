@@ -23,8 +23,14 @@ async function check(path, expected, label, location) {
 await check("/", 307, "Public root redirects to import workspace", "/import");
 await check("/import/login", 200, "Import login remains public");
 await check("/import/orders", 200, "Import application route remains available");
+await check("/platform/login", 200, "SuperAdmin has independent login route");
+await check("/platform", 200, "Platform dashboard route remains available but session-gated");
+await check("/platform/plans", 200, "Manual-only platform plan catalogue route is available");
+await check("/platform/subscriptions", 200, "Platform subscriptions route is available");
 await check("/import-api/api/health", 200, "Import API same-origin proxy remains available");
 await check("/import-api/api/companies", 401, "Tenant API enforces authentication");
+await check("/import-api/api/platform/overview", 401, "Platform API requires separate SuperAdmin session");
+await check("/platform-spoof", 404, "Platform route prefix cannot be spoofed");
 await check("/editor/template/00000000-0000-0000-0000-000000000000", 404,
   "Old template editor is unavailable in Production");
 await check("/api/templates", 404, "Old template API is unavailable in Production");
