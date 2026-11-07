@@ -1,0 +1,29 @@
+# Standalone authenticated Import API only. Never package the unauthenticated
+# legacy document-editor backend in this image.
+FROM mcr.microsoft.com/dotnet/sdk:10.0-bookworm-slim AS build
+WORKDIR /src
+COPY backend/Wathiqa.ImportApi/Wathiqa.ImportApi.csproj backend/Wathiqa.ImportApi/
+RUN dotnet restore backend/Wathiqa.ImportApi/Wathiqa.ImportApi.csproj
+COPY backend/Wathiqa.ImportApi/ backend/Wathiqa.ImportApi/
+RUN dotnet publish backend/Wathiqa.ImportApi/Wathiqa.ImportApi.csproj \
+    --configuration Release --no-restore --output /publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-bookworm-slim
+USER root
+# CLI scanner is invoked on PRIVATE *.pending files before visibility.
+# Signature updates are maintained by the separate ClamAV container, sharing
+# /var/lib/clamav read-only with this container.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    --no-install-recommends clamav ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /publish/ ./
+COPY deploy/import/api-entrypoint.sh /usr/local/bin/wathiqa-import-entrypoint
+RUN chmod 0555 /usr/local/bin/wathiqa-import-entrypoint
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_ENVIRONMENT=Production \
+    DOTNET_EnableDiagnostics=0
+USER 1654:1654
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/wathiqa-import-entrypoint"]

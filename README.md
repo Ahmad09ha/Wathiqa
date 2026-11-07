@@ -1,12 +1,18 @@
-﻿# وثيقة | Wathiqa — Document Template Studio
+﻿# وثيقة | Wathiqa — Import Management Migration Workspace
 
-**وثيقة** (Wathiqa) is a local-first Arabic document-template workspace: import files, build reusable templates, create independent editable documents and export structured Excel files.
+**Current product direction:** وثيقة is a multi-tenant yarn import management system. The authenticated .NET 10 API and Arabic workspace preserve legacy editor source/data separately. **Orders, B/L, containers, customs, private documents, scheduled dues, evidence-linked transfer ledger, same-order expense allocations, refunds, correction/closure controls and operational/financial reports** have locally verified MVP slices. A transfer recorded by a user is **not independently bank-confirmed**. The optimized **Next.js 16.4.5** Production build blocks old editor/API web routes; the old backend must **never** be exposed on VPS. Local scanning/security and DB/blob/finance restore passed, but actual Docker build, real AV signature scan, HTTPS, encrypted off-host recovery, staging and merchant acceptance remain **publication blockers**. See [WP-05 finance evidence](docs/implementation/WP-05-VERIFICATION.md), [WP-08 reports](docs/implementation/WP-08-PROGRESS.md), [WP-09 security](docs/implementation/WP-09-VERIFICATION.md), [VPS release runbook](deploy/import/RELEASE-RUNBOOK.md), and [approved decisions](docs/architecture/01-DECISIONS.md).
 
-**Stack:** .NET 9 Minimal API · EF Core 9 · PostgreSQL 18 · Next.js 16.4.2 · React 19 · Tiptap 3.32 · Lenis 1.3 · ClosedXML.
+**New local import workspace:** http://localhost:3000/import/login (requires starting the new Import API at 127.0.0.1:5089). Demo-only credentials are in the gitignored .local/import-demo-accounts.json.
+
+**Access-seeded Admin accounts:** Two separate merchant workspaces now exist locally: `trial-admin@wathiqa.invalid` (3 calendar months from initial seed) and `unlimited-admin@wathiqa.invalid` (no automatic expiration). Passwords are random and stored ONLY in gitignored `.local/import-access-accounts.json`. Their tenant-level expiration is enforced by Identity login, cookies and authorization. New VPS databases can provision the same account types via an opt-in, environment-secret-backed one-time seed; **no VPS database has been modified yet**. Instructions: [Access Seed / VPS provisioning](docs/implementation/ACCESS-SEED-ACCOUNTS.md).
+
+**Legacy editor:** The remainder of this README documents the earlier document-template product, retained for archival/development compatibility. Its root and `/editor` routes are now **blocked in the Production Next.js build**; the root redirects to `/import`. This is intentional, and must not be bypassed in public deployment.
+
+**Legacy API stack:** .NET 9 Minimal API · EF Core 9 · PostgreSQL 18 · React 19 · Tiptap · Lenis · ClosedXML. **New stack:** .NET 10 · Identity · EF Core 10 · PostgreSQL 18 · Next.js 16.4.5 (import-only public routes).
 
 ## Open the working app
 
-- **Frontend:** http://localhost:3000
+- **Frontend (current import product):** http://localhost:3000/import/login (the root redirects to `/import` with the optimized build)
 - **Backend and database health:** http://127.0.0.1:5088/api/health
 - **PostgreSQL:** 127.0.0.1:55432, project-owned local cluster. New installations create `wathiqa_docs` / `wathiqa_dev`; existing installations keep their earlier database/account and records intact.
 
@@ -25,7 +31,7 @@ The original Windows working-folder name is intentionally unchanged for Rider co
 
 ## First-time dependency setup
 
-- .NET 9 SDK, Node.js 22+, npm, PostgreSQL 18 Windows binaries
+- .NET 9 and .NET 10 SDKs, Node.js 22+, npm, PostgreSQL 18 Windows binaries
 - From project root: `dotnet restore Wathiqa.slnx`
 - Then: `dotnet build Wathiqa.slnx`
 - From `frontend`: `npm ci` followed by `npm run build`
@@ -91,21 +97,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Run-Smoke-Tests.ps
 
 ## Material limitations — not production-ready
 
-- **No authentication or user/tenant authorization.** Run on localhost only. Do not expose the API to public Internet or add confidential customer contracts before implementing account isolation and access control.
+- **The legacy editor/API has no authentication or tenant isolation.** The new Production Next.js route gate denies its web paths, but the old backend on port 5088 must still be isolated; public deployment remains blocked until a complete end-to-end staging audit.
 - **Imported PDF/DOCX layout is not recreated faithfully.** Label extraction is heuristic, may omit legal clauses or table grid structure, and scanned PDFs need a separate OCR service.
 - **Excel export is content-to-worksheet, not pixel-perfect reconstruction** of the imported PDF or a replacement for a Word/PDF contract preview.
 - Two built-in templates are editable starter structures with placeholders. They are **not verbatim legally approved copies** of the original SEDAR contracts; verify the final legal terms against the PDFs.
-- Development EF Core setup uses `EnsureCreated`, not migrations. A migration plan is required before production releases.
+- The **legacy editor** uses `EnsureCreated`. The new import database uses EF Core Migrations. Do not mix their schemas.
 - No audit history, account ownership, malware scanning, or production deployment/monitoring is implemented.
 - No automatic autosave; click Save explicitly. Concurrency protection applies to document revisions, not simultaneous edits to templates.
 - Actual user-uploaded contract PDFs have **not yet been run through the import endpoint** in this session; the validated import fixtures were generated PDF/DOCX files.
 
 ## Source map
 
-- `backend/Hussam.Api/Program.cs` — APIs and file import/export
-- `backend/Hussam.Api/Models.cs` — EF Core tables
-- `backend/Hussam.Api/ContentTools.cs` — Tiptap JSON normalization and extraction
-- `backend/Hussam.Api/Seed.cs` — starter template data
+- `backend/Wathiqa.Api/Program.cs` — legacy APIs and file import/export
+- `backend/Wathiqa.Api/Models.cs` — legacy EF Core tables
+- `backend/Wathiqa.Api/ContentTools.cs` — legacy Tiptap JSON normalization and extraction
+- `backend/Wathiqa.Api/Seed.cs` — legacy starter template data
+- `backend/Wathiqa.ImportApi/` — .NET 10 Identity/tenant, parties, Orders, logistics, private documents, payment ledger and P-02/P-03 admin/finance workflows with migrations
+- `frontend/src/app/import/` — new Arabic import management workspace
 - `frontend/src/app/page.tsx` — workspace
 - `frontend/src/app/editor/[kind]/[id]/page.tsx` — document/template editing
 - `frontend/src/components/DocumentEditor.tsx` — Tiptap controls

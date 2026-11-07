@@ -1,0 +1,147 @@
+# Dokploy Compose deployment — separate from legacy root docker-compose.yml.
+# Only `web` connects to the public Dokploy ingress network. No published DB,
+# API, ClamAV port, and NO legacy .NET 9 editor service.
+# Before deploy: configure isolated subnet + exact web IP (trusted API proxy),
+# create secret files and bind directories as documented in RELEASE-RUNBOOK.md.
+services:
+  postgres:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wathiqa_import
+      POSTGRES_USER: wathiqa_import
+      POSTGRES_PASSWORD_FILE: /run/secrets/import_db_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    secrets: [import_db_password]
+    volumes:
+      - import_postgres_data:/var/lib/postgresql
+    networks: [import_private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wathiqa_import -d wathiqa_import"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  clamav-signatures:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_CLAMD: "true"
+      CLAMAV_NO_FRESHCLAMD: "false"
+    volumes:
+      - import_clamav_signatures:/var/lib/clamav
+    # This updater needs Internet to fetch signatures but has no web ports.
+    networks: [signature_updates]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/import/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      clamav-signatures: {condition: service_started}
+    secrets:
+      - import_db_password
+      - import_dp_certificate
+      - import_dp_password
+      - import_trial_email
+      - import_trial_password
+      - import_unlimited_email
+      - import_unlimited_password
+    environment:
+      WATHIQA_DB_PASSWORD_FILE: /run/secrets/import_db_password
+      WATHIQA_DP_PASSWORD_FILE: /run/secrets/import_dp_password
+      WATHIQA_DB_HOST: postgres
+      WATHIQA_DB_NAME: wathiqa_import
+      WATHIQA_DB_USER: wathiqa_import
+      ReverseProxy__KnownProxies: ${WATHIQA_WEB_IP:?Set the exact frontend container IP}
+      Documents__PrivateRoot: /var/lib/wathiqa/documents
+      Documents__ClamScanExecutable: /usr/bin/clamscan
+      DataProtection__KeysPath: /var/lib/wathiqa/keys
+      DataProtection__CertificatePath: /run/secrets/import_dp_certificate
+    volumes:
+      - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/documents:/var/lib/wathiqa/documents
+      - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/keys:/var/lib/wathiqa/keys
+      - import_clamav_signatures:/var/lib/clamav:ro
+    networks: [import_private]
+    expose: ["8080"]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/import/Dockerfile.web
+      args:
+        IMPORT_API_INTERNAL_URL: http://api:8080
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      IMPORT_API_INTERNAL_URL: http://api:8080
+    expose: ["3000"]
+    networks:
+      import_private:
+        ipv4_address: ${WATHIQA_WEB_IP:?Set the exact frontend container IP}
+      dokploy-network: {}
+
+  # Explicitly opt-in via `docker compose --profile ops run --rm backup`.
+  # Do not start automatically as part of `up`: a running app is NOT proof of
+  # an off-host backup. Remote restic credentials must come from an approved
+  # protected secret store; this job does not publish any ports.
+  backup:
+    profiles: ["ops"]
+    build:
+      context: ../..
+      dockerfile: deploy/import/Dockerfile.backup
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    secrets:
+      - import_db_password
+      - import_restic_password
+      - import_dp_certificate
+      - import_s3_access_key
+      - import_s3_secret_key
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?Remote encrypted restic destination required}
+    volumes:
+      - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/documents:/var/lib/wathiqa/documents:ro
+      - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/keys:/var/lib/wathiqa/keys:ro
+      - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/backup_tmp:/var/lib/wathiqa/backup_tmp
+    networks: [import_private, backup_egress]
+
+networks:
+  import_private:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${WATHIQA_PRIVATE_SUBNET:?Example 172.29.241.0/24; verify no overlap}
+  signature_updates: {}
+  backup_egress: {}
+  dokploy-network:
+    external: true
+
+volumes:
+  import_postgres_data: {}
+  import_clamav_signatures: {}
+
+secrets:
+  import_db_password:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_db_password
+  import_dp_certificate:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_dp_certificate.pfx
+  import_dp_password:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_dp_password
+  import_restic_password:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_restic_password
+  import_trial_email:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_trial_email
+  import_trial_password:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_trial_password
+  import_unlimited_email:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_unlimited_email
+  import_unlimited_password:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_unlimited_password
+  import_s3_access_key:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_s3_access_key
+  import_s3_secret_key:
+    file: ${WATHIQA_SECRETS_ROOT:?Absolute secret directory}/import_s3_secret_key

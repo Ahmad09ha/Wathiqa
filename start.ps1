@@ -7,8 +7,9 @@ if (-not (Test-Path (Join-Path $root 'frontend/.next/BUILD_ID'))) {
     throw 'Frontend not built. Run: cd frontend; npm install; npm run build'
 }
 & (Join-Path $root 'scripts/Start-Backend.ps1')
+& (Join-Path $root 'scripts/Start-ImportApi.ps1')
 & (Join-Path $root 'scripts/Start-Web.ps1')
-foreach ($endpoint in @('http://127.0.0.1:5088/api/health','http://127.0.0.1:3000/')) {
+foreach ($endpoint in @('http://127.0.0.1:5088/api/health','http://127.0.0.1:5089/api/health','http://127.0.0.1:3000/','http://127.0.0.1:3000/import-api/api/health')) {
     $ready = $false
     for ($attempt=0; $attempt -lt 40; $attempt++) {
         try {
@@ -22,3 +23,5 @@ foreach ($endpoint in @('http://127.0.0.1:5088/api/health','http://127.0.0.1:300
 }
 Write-Host 'Wathiqa is available at http://localhost:3000' -ForegroundColor Green
 Write-Host 'API health: http://127.0.0.1:5088/api/health' -ForegroundColor Cyan
+Write-Host 'Import login: http://localhost:3000/import/login' -ForegroundColor Green
+Write-Host 'Import API health: http://127.0.0.1:5089/api/health' -ForegroundColor Cyan
