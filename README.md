@@ -1,44 +1,37 @@
 ﻿# وثيقة | Wathiqa — Import Management Migration Workspace
 
+## Start here — تشغيل وثيقة محلياً لأول مرة
+
+**للمطوّر الجديد:** اتّبع [دليل التشغيل المحلي بالعربي (Windows)](docs/LOCAL-SETUP-AR.md) خطوة بخطوة. يشمل تثبيت المتطلبات، تنزيل الفرع الصحيح، إنشاء PostgreSQL المنفصل، تطبيق EF Migrations، إنشاء حسابات Admin وSuperAdmin محلياً، تشغيل الخدمات، وحلول الأخطاء الشائعة. **لا تحتاج ملفات أسرار من جهاز مطوّر آخر**؛ السكريبتات تنشئ كلمات مرور محلية جديدة وتحفظها خارج Git.
+
+بعد إكمال التجهيز الأول، شغّل المشروع الحالي من جذر المستودع:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-ImportApi.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-Web.ps1
+```
+
+- التاجر: http://localhost:3000/import/login
+- مدير المنصة SuperAdmin: http://localhost:3000/platform/login
+- Health: http://127.0.0.1:5089/api/health
+
+> مهم: ملف `start.ps1` القديم يشغّل أيضاً واجهة/Backend محرّر المستندات القديم على `5088`. **لا تستخدمه كطريقة تشغيل المنتج الجديد**. التفاصيل الكاملة في الدليل أعلاه.
+
 **Current product direction:** وثيقة is a multi-tenant yarn import management system. The authenticated .NET 10 API and Arabic workspace preserve legacy editor source/data separately. **Orders, B/L, containers, customs, private documents, scheduled dues, evidence-linked transfer ledger, same-order expense allocations, refunds, correction/closure controls and operational/financial reports** have locally verified MVP slices. **PA-01 + PA-02** add an independent Arabic `SuperAdmin` control plane, merchant/user administration, and **fully manual subscriptions** (plan names/durations, assignment, renewal, termination and audits; 76 API + 16 browser checks). By explicit owner decision, there is **NO payment capability of any kind for Wathiqa subscriptions:** no price, payment entry, invoice, gateway or billing ledger, and no automatic renewal. The existing merchant payment ledger is a separate import-order workflow; a transfer recorded by a merchant is **not independently bank-confirmed**. The optimized **Next.js 16.4.5** Production build blocks old editor/API web routes; the old backend must **never** be exposed on VPS. Local DB/blob/key/finance/manual-subscription restore passed, but actual Docker build, real AV scan, HTTPS, encrypted off-host recovery, staging, owner credential recovery/MFA and merchant acceptance remain **publication blockers**. See [PA-01 platform](docs/implementation/PA-01-VERIFICATION.md), [PA-02 subscriptions](docs/implementation/PA-02-MANUAL-SUBSCRIPTIONS-VERIFICATION.md), [WP-05 finance](docs/implementation/WP-05-VERIFICATION.md), [WP-09 security](docs/implementation/WP-09-VERIFICATION.md), [VPS runbook](deploy/import/RELEASE-RUNBOOK.md), and [approved decisions](docs/architecture/01-DECISIONS.md).
 
-**New local import workspace:** http://localhost:3000/import/login (requires starting the new Import API at 127.0.0.1:5089). Demo-only credentials are in the gitignored .local/import-demo-accounts.json.
+**New local import workspace:** http://localhost:3000/import/login (requires Import API at 127.0.0.1:5089). On a fresh clone, provision your own trial/unlimited tenant accounts with `scripts/Seed-ImportAccessAccounts.ps1`; their generated credentials are in gitignored `.local/import-access-accounts.json` (see [local setup](docs/LOCAL-SETUP-AR.md)). `.local/import-demo-accounts.json` exists only when separate demo/QA fixtures are created.
 
 **Independent local Platform SuperAdmin console:** http://localhost:3000/platform/login. The operator login is `local-superadmin@wathiqa.invalid` and its random password is in **gitignored** `.local/platform-superadmin-account.json`, never in source control. Platform and merchant cookies/roles are independent. `/platform/plans` and `/platform/subscriptions` manage manually granted access **without payment or billing**. See [PA-02 verification](docs/implementation/PA-02-MANUAL-SUBSCRIPTIONS-VERIFICATION.md).
 
 **Access-seeded Admin accounts:** Two separate merchant workspaces now exist locally: `trial-admin@wathiqa.invalid` (3 calendar months from initial seed) and `unlimited-admin@wathiqa.invalid` (no automatic expiration). Passwords are random and stored ONLY in gitignored `.local/import-access-accounts.json`. Their tenant-level expiration is enforced by Identity login, cookies and authorization. New VPS databases can provision the same account types via an opt-in, environment-secret-backed one-time seed; **no VPS database has been modified yet**. Instructions: [Access Seed / VPS provisioning](docs/implementation/ACCESS-SEED-ACCOUNTS.md).
 
-**Legacy editor:** The remainder of this README documents the earlier document-template product, retained for archival/development compatibility. Its root and `/editor` routes are now **blocked in the Production Next.js build**; the root redirects to `/import`. This is intentional, and must not be bypassed in public deployment.
+**Legacy editor:** The section marked "توثيق تاريخي" below documents the earlier document-template product, retained for archival/development compatibility. Its root and `/editor` routes are **blocked in the Production Next.js build**; the root redirects to `/import`. This is intentional and must not be bypassed in public deployment.
 
 **Legacy API stack:** .NET 9 Minimal API · EF Core 9 · PostgreSQL 18 · React 19 · Tiptap · Lenis · ClosedXML. **New stack:** .NET 10 · Identity · EF Core 10 · PostgreSQL 18 · Next.js 16.4.5 (authenticated import and separate SuperAdmin platform routes).
 
-## Open the working app
+## توثيق تاريخي — محرّر القوالب والمستندات القديم
 
-- **Frontend (current import product):** http://localhost:3000/import/login (the root redirects to `/import` with the optimized build)
-- **Backend and database health:** http://127.0.0.1:5088/api/health
-- **PostgreSQL:** 127.0.0.1:55432, project-owned local cluster. New installations create `wathiqa_docs` / `wathiqa_dev`; existing installations keep their earlier database/account and records intact.
-
-Both app processes have been launched on the user's development machine. To restart after reboot or manually:
-
-```powershell
-cd D:\Works\PrivateWorks\Hussam
-powershell -ExecutionPolicy Bypass -File .\start.ps1
-```
-
-This starts the project-specific PostgreSQL cluster (if needed), .NET API and the built Next.js frontend. To stop them, use `.\stop.ps1` (pass `-StopDatabase` if you also want to stop the dedicated local PostgreSQL server).
-
-The original Windows working-folder name is intentionally unchanged for Rider compatibility; project, solution, UI, npm package and GitHub repository identity are now **Wathiqa**. The existing local database is preserved to avoid losing previous templates/documents.
-
-**Do not use Docker Compose and the local PostgreSQL initializer simultaneously** unless you intentionally configure different database ports. The successful local setup uses the Windows PostgreSQL 18 installation on port 55432.
-
-## First-time dependency setup
-
-- .NET 9 and .NET 10 SDKs, Node.js 22+, npm, PostgreSQL 18 Windows binaries
-- From project root: `dotnet restore Wathiqa.slnx`
-- Then: `dotnet build Wathiqa.slnx`
-- From `frontend`: `npm ci` followed by `npm run build`
-
-The local initializer creates a dedicated database directory under `.local/pgdata` and a randomly generated credential in `.local/pg-password.txt`, both excluded by `.gitignore`. Do not share this local secret. App connection settings are passed to the API process in its environment by `scripts/Start-Backend.ps1`.
+الأقسام التالية توثّق المنتج السابق (‎Legacy Editor / .NET 9). **ليست خطوات تشغيل Wathiqa Import + SuperAdmin الحالية.** شغّل المشروع الجديد فقط من خلال [دليل التشغيل المحلي](docs/LOCAL-SETUP-AR.md)؛ ولا تنشر محرّر الوثائق القديم أو API الخاص به.
 
 ## Workflow
 
