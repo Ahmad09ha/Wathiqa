@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # First-time Hostinger/Dokploy host provisioning. This script never deploys
 # containers, overwrites credentials, resets PostgreSQL, or changes a tenant.
 set -Eeuo pipefail
