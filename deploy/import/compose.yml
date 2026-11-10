@@ -68,6 +68,14 @@ services:
       - import_clamav_signatures:/var/lib/clamav:ro
     networks: [import_private]
     expose: ["8080"]
+    healthcheck:
+      # The first fresh install remains unhealthy until the one-time seed job
+      # applies EF migrations. Keep web startup independent of this gate.
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
 
   web:
     build:
@@ -80,6 +88,12 @@ services:
     environment:
       IMPORT_API_INTERNAL_URL: http://api:8080
     expose: ["3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/import/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 20s
+      timeout: 6s
+      retries: 5
+      start_period: 60s
     networks:
       import_private:
         ipv4_address: ${WATHIQA_WEB_IP:?Set the exact frontend container IP}
@@ -104,7 +118,9 @@ services:
       - import_s3_access_key
       - import_s3_secret_key
     environment:
-      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?Remote encrypted restic destination required}
+      # Backup is opt-in. A fresh Dokploy Compose deployment can boot without
+      # remote storage configured; the backup job itself fails closed.
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
     volumes:
       - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/documents:/var/lib/wathiqa/documents:ro
       - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/keys:/var/lib/wathiqa/keys:ro
