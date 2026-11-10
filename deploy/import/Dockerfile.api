@@ -1,6 +1,7 @@
 # Standalone authenticated Import API only. Never package the unauthenticated
 # legacy document-editor backend in this image.
-FROM mcr.microsoft.com/dotnet/sdk:10.0-bookworm-slim AS build
+# .NET 10 official images use Ubuntu Noble; Debian Bookworm tags do not exist.
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 COPY backend/Wathiqa.ImportApi/Wathiqa.ImportApi.csproj backend/Wathiqa.ImportApi/
 RUN dotnet restore backend/Wathiqa.ImportApi/Wathiqa.ImportApi.csproj
@@ -8,7 +9,7 @@ COPY backend/Wathiqa.ImportApi/ backend/Wathiqa.ImportApi/
 RUN dotnet publish backend/Wathiqa.ImportApi/Wathiqa.ImportApi.csproj \
     --configuration Release --no-restore --output /publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-bookworm-slim
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble
 USER root
 # CLI scanner is invoked on PRIVATE *.pending files before visibility.
 # Signature updates are maintained by the separate ClamAV container, sharing
