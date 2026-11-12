@@ -6,7 +6,7 @@ export interface PaymentScheduleView {
 }
 export interface PaymentTransferView {
   id:string;amount:number;beneficiaryCompanyId:string;beneficiarySnapshot:string;
-  transferDate:string;method:string;reference:string;proofDocumentId:string;
+  transferDate:string;method:string;reference:string;bankOrExchangeName:string;proofDocumentId:string;
   state:"Active"|"Voided";replacesTransferId:string|null;voidReason:string|null;
   returned:number;commercialApplied:number;expenseApplied:number;available:number;
 }

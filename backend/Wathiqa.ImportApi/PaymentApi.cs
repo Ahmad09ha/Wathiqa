@@ -7,7 +7,7 @@ public sealed record CreateScheduleInput(string? Kind,decimal Amount,DateOnly Du
     string? Notes,Guid IdempotencyKey,int? Revision);
 public sealed record CreateTransferInput(decimal Amount,Guid BeneficiaryCompanyId,
     DateOnly TransferDate,string? Method,string? Reference,Guid ProofDocumentId,
-    Guid IdempotencyKey,int? Revision);
+    Guid IdempotencyKey,int? Revision,string? BankOrExchangeName = null);
 public sealed record CreateExpenseInput(decimal Amount,Guid PayeeCompanyId,string? Category,
     string? Description,Guid EvidenceDocumentId,Guid IdempotencyKey,int? Revision);
 public sealed record AllocateExpenseInput(Guid TransferId,decimal Amount,
@@ -100,13 +100,20 @@ public static partial class PaymentApi
         var method=input.Method?.Trim()??"";
         var reference=input.Reference?.Trim()??"";
         if(!PaymentWriteRules.AmountOk(input.Amount)||!PaymentWriteRules.DateOk(input.TransferDate)||
-           method is not ("BankTransfer" or "LC" or "Cash" or "Other") ||
-           !PaymentWriteRules.TextOk(reference)||input.BeneficiaryCompanyId==Guid.Empty||
+            method is not ("BankTransfer" or "LC" or "Cash" or "Other" or "ExchangeOffice") ||
+            !PaymentWriteRules.TextOk(reference)||input.BeneficiaryCompanyId==Guid.Empty||
+            !PaymentWriteRules.TextOk(input.BankOrExchangeName??"",180)||
            !PaymentWriteRules.IdempotencyOk(input.IdempotencyKey))
             return PaymentWriteRules.Error("invalid_transfer");
         var tenant=CurrentTenant.Id(user);var actor=CurrentTenant.UserId(user);
-        var hash=PaymentWriteRules.Hash(new{orderId,input.Amount,input.BeneficiaryCompanyId,
-            input.TransferDate,method,reference,input.ProofDocumentId});
+        // Preserve historical idempotency hashes when older clients omit the
+        // newly optional bank/exchange metadata.
+        var hash=input.BankOrExchangeName is null
+            ?PaymentWriteRules.Hash(new{orderId,input.Amount,input.BeneficiaryCompanyId,
+                input.TransferDate,method,reference,input.ProofDocumentId})
+            :PaymentWriteRules.Hash(new{orderId,input.Amount,input.BeneficiaryCompanyId,
+                input.TransferDate,method,reference,input.ProofDocumentId,
+                BankOrExchangeName=input.BankOrExchangeName.Trim()});
         await using var transaction=await db.Database.BeginTransactionAsync();
         var order=await PaymentWriteRules.LockOrder(db,tenant,orderId);
         if(order is null)return Results.NotFound();
@@ -126,7 +133,8 @@ public static partial class PaymentApi
         var transfer=new PaymentTransfer{TenantId=tenant,OrderId=orderId,
             BeneficiaryCompanyId=input.BeneficiaryCompanyId,BeneficiarySnapshot=beneficiary,
             Amount=input.Amount,TransferDate=input.TransferDate,Method=method,
-            Reference=reference,ProofDocumentId=input.ProofDocumentId,
+            Reference=reference,BankOrExchangeName=(input.BankOrExchangeName??"").Trim(),
+            ProofDocumentId=input.ProofDocumentId,
             IdempotencyKey=input.IdempotencyKey,RequestHash=hash,CreatedById=actor};
         db.PaymentTransfers.Add(transfer);
         var commercial=input.BeneficiaryCompanyId==order.SupplierId?

@@ -1,11 +1,12 @@
 ﻿# Clean ONLY disposable WP06 QA fixtures from the isolated local import DB.
 # Does not touch legacy editor, real merchants, or any unrelated order.
-param([switch]$Apply)
+param([switch]$Apply,[string]$Run)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $local=Join-Path $root '.local'
 $psql='C:\Program Files\PostgreSQL\18\bin\psql.exe'
-$files=@(Get-ChildItem -Path $local -Filter 'logistics-qa-fixtures*.json' -File -ErrorAction SilentlyContinue)
+$files=@(Get-ChildItem -Path $local -Filter 'logistics-qa-fixtures*.json' -File -ErrorAction SilentlyContinue |
+    Where-Object { -not $Run -or $_.Name -eq ("logistics-qa-fixtures-"+$Run+".json") })
 if($files.Count -eq 0){Write-Output 'NO_WP06_FIXTURES_FOUND';exit 0}
 $env:PGPASSFILE=Join-Path $local 'import-pgpass.conf'
 $sqlFile=Join-Path $local 'logistics-qa-cleanup.sql'
@@ -39,7 +40,8 @@ SELECT 'QA_MATCH' AS kind, '__RUN__' AS run,
 __DELETE__
 COMMIT;
 '@
-    $deletion=@'
+$deletion=@'
+ DELETE FROM "ShipmentTrackingReferences" WHERE "ShipmentId" IN (SELECT "Id" FROM qa_shipments);
 DELETE FROM "LogisticsAudits" WHERE "ShipmentId" IN (SELECT "Id" FROM qa_shipments);
 DELETE FROM "CustomsClearances" WHERE "ShipmentId" IN (SELECT "Id" FROM qa_shipments);
 DELETE FROM "Containers" WHERE "ShipmentId" IN (SELECT "Id" FROM qa_shipments);

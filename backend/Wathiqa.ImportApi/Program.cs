@@ -106,6 +106,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddDbContext<ImportDb>(options => options.UseNpgsql(connection));
 builder.Services.AddSingleton<IUploadThreatScanner,ClamAvUploadThreatScanner>();
 builder.Services.AddSingleton<IPrivateDocumentStore,PrivateDocumentStore>();
+builder.Services.AddSingleton<SeaRatesTrackingClient>();
 builder.Services.Configure<FormOptions>(options=>{
     options.MultipartBodyLengthLimit=PrivateDocumentStore.MaxRequestBytes;
     options.MemoryBufferThreshold=64*1024;
@@ -338,6 +339,7 @@ CompanyApi.Map(app);
 OrderApi.Map(app);
 PaymentApi.Map(app);
 LogisticsApi.Map(app);
+TrackingApi.Map(app);
 DocumentsApi.Map(app);
 OperationsApi.Map(app);
 

@@ -48,6 +48,7 @@ export interface PurchaseOrderItem {
   id: string;
   position: number;
   productType: string;
+  brand: string;
   denier: string;
   luster: string;
   grade: string;
@@ -67,6 +68,9 @@ export interface PurchaseOrder {
   customerId: string | null;
   customerNameSnapshot: string | null;
   supplierRef: string;
+  proformaInvoiceNumber: string;
+  contractNumber: string;
+  contractDate: string | null;
   orderDate: string;
   incoterm: string;
   loadingPort: string;
@@ -129,6 +133,7 @@ export interface OrdersPage {
 export interface OrderInputItem {
   id?: string;
   productType: string;
+  brand?: string;
   denier: string;
   luster: string;
   grade: string;
@@ -143,6 +148,10 @@ export interface SaveOrderInput {
   supplierId: string;
   customerId: string | null;
   supplierRef: string;
+  proformaInvoiceNumber?: string;
+  contractNumber?: string;
+  contractDate?: string | null;
+  metadataEdited?: boolean;
   orderDate: string;
   incoterm: string;
   loadingPort: string;
@@ -291,6 +300,22 @@ const ArabicErrors: Record<string, string> = {
   ,manual_subscription_not_renewable: "هذا الاشتراك غير قابل للتجديد. يجب أن يكون نشطاً ومحدّد المدة وباقته فعّالة."
   ,manual_subscription_already_ended: "الاشتراك منتهٍ بالفعل أو غير موجود."
   ,subscription_managed: "هذه الشركة مرتبطة باشتراك يدوي. استخدم إدارة الاشتراك بدل تعديل تاريخ الوصول مباشرة."
+  ,tracking_invalid_type: "اختر رقم حاوية أو رقم بوليصة."
+  ,tracking_invalid_number: "رقم التتبع غير صالح."
+  ,tracking_invalid_container: "راجع صيغة رقم الحاوية ISO 6346."
+  ,tracking_bl_must_match_shipment: "رقم البوليصة يجب أن يطابق البوليصة المحددة."
+  ,tracking_container_not_in_shipment: "لا يمكن تتبع حاوية غير مسجلة ضمن هذه البوليصة. أضفها من تبويب البوليصة أولاً."
+  ,tracking_reference_limit: "وصلت هذه البوليصة للحد الأقصى من مراجع التتبع."
+  ,tracking_invalid_carrier: "رمز شركة الشحن يجب أن يكون من حرفين إلى 12 حرفاً أو رقماً."
+  ,tracking_reference_conflict: "رقم التتبع مسجل بالفعل. أعد تحميل البيانات."
+  ,tracking_not_configured: "خدمة التتبع البحري غير مفعّلة على السيرفر."
+  ,tracking_provider_auth_failed: "مفتاح مزوّد التتبع غير صالح أو غير مخوّل."
+  ,tracking_provider_rate_limited: "انتهى حد الاستعلامات المسموح من شركة التتبع حالياً."
+  ,tracking_provider_unavailable: "خدمة شركة التتبع غير متاحة. البيانات المحفوظة لم تتغير."
+  ,tracking_provider_no_data: "لم يجد مزوّد التتبع بيانات لهذا الرقم بعد."
+  ,tracking_provider_invalid_response: "أعاد مزوّد التتبع بيانات غير متوقعة."
+  ,tracking_provider_timeout: "انتهت مهلة استجابة مزوّد التتبع."
+  ,tracking_refresh_too_soon: "تم طلب تحديث قريباً. انتظر مدة التحديث قبل طلب استعلام جديد."
 };
 async function acquireCsrf(): Promise<string> {
   if (csrfValue) return csrfValue;

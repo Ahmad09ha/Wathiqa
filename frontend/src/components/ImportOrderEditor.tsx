@@ -1,13 +1,15 @@
 ﻿"use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ClipboardList, Plus, Save, Trash2, Info } from "lucide-react";
+import { ArrowRight, ClipboardList, Plus, Save, Trash2, Info, FilePlus2 } from "lucide-react";
 import ImportShell from "@/components/ImportShell";
 import ImportLogisticsPanel from "@/components/ImportLogisticsPanel";
 import ImportDocumentsPanel from "@/components/ImportDocumentsPanel";
 import ImportPaymentPanel from "@/components/ImportPaymentPanel";
+import ImportTrackingPanel from "@/components/ImportTrackingPanel";
+import {documentPreviewUrl,listDocuments,uploadPrivateDocument,DocumentType,BusinessDocument} from "@/lib/documentsApi";
 import { useToast } from "@/components/ToastProvider";
 import { fetchImportCompanies, fetchOrder, importApi, ImportCompany, CurrentImportUser, OrderInputItem, PurchaseOrder, SaveOrderInput } from "@/lib/importApi";
 
@@ -20,14 +22,15 @@ function todayLocal() {
   return local.toISOString().slice(0,10);
 }
 function newLine():LocalLine {
-  return {localKey:crypto.randomUUID(),productType:"POY",denier:"",luster:"SD",grade:"AA",colorType:"Raw White",
+  return {localKey:crypto.randomUUID(),productType:"POY",brand:"",denier:"",luster:"SD",grade:"AA",colorType:"Raw White",
     quantity:1,quantityUnit:"KG",unitPrice:1,priceUnit:"KG",hsCode:""};
 }
 function emptyForm():SaveOrderInput {
-  return {supplierId:"",customerId:null,supplierRef:"",orderDate:todayLocal(),incoterm:"FOB",
+  return {supplierId:"",customerId:null,supplierRef:"",proformaInvoiceNumber:"",
+    contractNumber:"",contractDate:null,metadataEdited:true,orderDate:todayLocal(),incoterm:"FOB",
     loadingPort:"",dischargePort:"",currency:"USD",notes:"",items:[],revision:null};
 }
-function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePayments:boolean;user:CurrentImportUser}) {
+function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{orderId?:string;canManagePayments:boolean;user:CurrentImportUser;documentWorkspace?:boolean}) {
   const router = useRouter();
   const {notify} = useToast();
   const [form,setForm] = useState<SaveOrderInput>(()=>({...emptyForm(),items:[newLine()]}));
@@ -37,18 +40,67 @@ function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePa
   const [loading,setLoading] = useState(true);
   const [saving,setSaving] = useState(false);
   const [dirty,setDirty] = useState(false);
+  const [activeTab,setActiveTab] = useState("info");
+  const [sourceFile,setSourceFile] = useState<File|null>(null);
+  const [sourceUrl,setSourceUrl] = useState<string|null>(null);
+  const [storedDocs,setStoredDocs] = useState<BusinessDocument[]>([]);
+  const [viewDoc,setViewDoc] = useState("");
+  const [sourceType,setSourceType] = useState<DocumentType>("Contract");
+  const [uploading,setUploading] = useState(false);
   const isEditing = Boolean(orderId);
+
+  useEffect(()=>{
+    if(!sourceFile){setSourceUrl(null);return;}
+    const url=URL.createObjectURL(sourceFile);
+    setSourceUrl(url);
+    return()=>URL.revokeObjectURL(url);
+  },[sourceFile]);
+  useEffect(()=>{
+    if(!orderId||!documentWorkspace)return;
+    let live=true;
+    listDocuments({orderId},1,100).then(result=>{
+      if(!live)return;
+      setStoredDocs(result.items);
+      setViewDoc(prev=>result.items.some(d=>d.id===prev)?prev:result.items[0]?.id||"");
+    }).catch(error=>notify({kind:"error",title:"تعذّر تحميل ملفات الطلب",description:(error as Error).message}));
+    return()=>{live=false;};
+  },[orderId,documentWorkspace,notify]);
+
+  function chooseSource(event:ChangeEvent<HTMLInputElement>){
+    const file=event.target.files?.[0]||null;
+    if(file&&(!/\.(pdf|png|jpe?g)$/i.test(file.name)||file.size>25*1024*1024||file.size===0)){
+      notify({kind:"error",title:"ملف غير مدعوم",description:"المتاح حالياً PDF أو JPG أو PNG حتى 25 MB، مع فحص الملف على السيرفر."});
+      event.target.value="";return;
+    }
+    setSourceFile(file);
+  }
+  async function uploadSource(order:string){
+    if(!sourceFile)return;
+    setUploading(true);
+    try{
+      const result=await uploadPrivateDocument(sourceFile,sourceType,{orderId:order},"الملف المرجعي لإدخال بيانات الاستيراد");
+      setSourceFile(null);setViewDoc(result.document.id);
+      if(orderId){
+        const documents=await listDocuments({orderId},1,100);
+        setStoredDocs(documents.items);
+      }
+      notify({kind:"success",title:"تم حفظ الملف بأمان وربطه بالطلب"});
+    }finally{setUploading(false);}
+  }
 
   function adoptOrder(order:PurchaseOrder){
     setCurrent(order);
     setForm({
       supplierId:order.supplierId,customerId:order.customerId,
-      supplierRef:order.supplierRef,orderDate:order.orderDate,incoterm:order.incoterm,
+      supplierRef:order.supplierRef,proformaInvoiceNumber:order.proformaInvoiceNumber||order.supplierRef,
+      contractNumber:order.contractNumber||"",contractDate:order.contractDate,
+      metadataEdited:true,
+      orderDate:order.orderDate,incoterm:order.incoterm,
       loadingPort:order.loadingPort,dischargePort:order.dischargePort,
       currency:order.currency,notes:order.notes,revision:order.revision,items:[]
     });
     setLines(order.items.map(item=>({
-      localKey:item.id,id:item.id,productType:item.productType,denier:item.denier,
+      localKey:item.id,id:item.id,productType:item.productType,brand:item.brand||"",denier:item.denier,
       luster:item.luster,grade:item.grade,colorType:item.colorType,
       quantity:item.quantityKg,quantityUnit:"KG",
       unitPrice:item.unitPrice,priceUnit:item.priceUnit,hsCode:item.hsCode
@@ -112,8 +164,12 @@ function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePa
         body:JSON.stringify({...form,items})
       });
       adoptOrder(result);
+      if(documentWorkspace&&sourceFile){
+        try{await uploadSource(result.id);}
+        catch(error){notify({kind:"error",title:"تم حفظ الطلب لكن تعذّر إرفاق الملف",description:(error as Error).message});}
+      }
       notify({kind:"success",title:isEditing?"تم حفظ تعديلات الطلب":"تم إنشاء طلب الشراء",description:"رقم الطلب: "+result.number});
-      router.push("/import/orders/"+result.id);
+      router.push("/import/orders/"+result.id+(documentWorkspace?"?mode=file":""));
       router.refresh();
     }catch(error){
       notify({kind:"error",title:"تعذّر حفظ طلب الشراء",description:(error as Error).message});
@@ -122,12 +178,63 @@ function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePa
 
   const suppliers=companies.filter(x=>x.type==="Supplier");
   const customers=companies.filter(x=>x.type==="Customer");
+  const tabs=[["info","معلومات الطلبية / العقد"],["payments","دفوعات"],
+    ["bl","بوليصة الشحن B/L"],["customs","تخليص جمركي"],["tracking","تتبع الشحنة"]];
+  const selectedDoc=storedDocs.find(d=>d.id===viewDoc);
+  const previewUrl=sourceUrl||(selectedDoc?documentPreviewUrl(selectedDoc.id):null);
+  const previewName=sourceFile?.name||selectedDoc?.originalFileName||"";
   return <>
     <div className="im-order-editor-head">
       <Link href="/import/orders" className="im-order-back"><ArrowRight size={17}/> جميع الطلبات</Link>
+      {orderId&&<Link href={"/import/orders/"+orderId+(documentWorkspace?"":"?mode=file")}
+        className="btn btn-outline">{documentWorkspace?"فتح شاشة الإدخال العادية":"فتح الملف والتبويبات"}</Link>}
        {current&&<span className="im-pill">{current.status==="Draft"?"مسودة":current.status==="Closed"?"مغلق إدارياً":"ملغى"} · إصدار {current.revision}</span>}
     </div>
-    {loading ? <div className="im-empty">جارٍ تحضير بيانات الطلب...</div> :
+    <div className={documentWorkspace?"im-file-workspace":"im-file-default"}>
+      {documentWorkspace&&<aside className="im-file-preview">
+        <div className="im-file-preview-head"><strong>الملف المرجعي</strong><small>لا يتم استخراج بيانات تلقائياً</small></div>
+        <label className="im-file-picker"><FilePlus2 size={19}/> اختيار ملف PDF أو صورة
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={chooseSource}/>
+        </label>
+        {sourceFile&&<div className="im-file-upload-row">
+          <strong dir="auto">{sourceFile.name}</strong>
+          <select aria-label="نوع المستند" value={sourceType} onChange={e=>setSourceType(e.target.value as DocumentType)}>
+            <option value="Contract">عقد</option><option value="Proforma">فاتورة أولية PI</option>
+            <option value="CommercialInvoice">فاتورة تجارية</option>
+            <option value="BillOfLading">بوليصة شحن</option><option value="Other">مستند آخر</option>
+          </select>
+          {orderId&&<button className="btn primary" type="button" disabled={uploading} onClick={()=>void uploadSource(orderId).catch(e=>notify({kind:"error",title:"فشل رفع الملف",description:(e as Error).message}))}>
+            {uploading?"جارٍ الرفع...":"حفظ الملف بالطلب"}</button>}
+        </div>}
+        {!sourceFile&&storedDocs.length>0&&<label className="im-file-doc-picker">ملفات الطلب المحفوظة
+          <select value={viewDoc} onChange={e=>setViewDoc(e.target.value)}>
+            {storedDocs.map(d=><option key={d.id} value={d.id}>{d.originalFileName}</option>)}
+          </select></label>}
+        {previewUrl?<div className="im-file-preview-frame" data-lenis-prevent>
+          {(sourceFile?.type==="application/pdf"||(!sourceFile&&selectedDoc?.contentType==="application/pdf"))
+            ?<iframe title={"معاينة "+previewName} src={previewUrl}/>:
+              <img src={previewUrl} alt={"معاينة "+previewName} />}
+        </div>:<div className="im-file-placeholder"><FilePlus2 size={30}/><strong>اختر مستنداً لعرضه هنا</strong>
+          <p>المستند على اليسار والحقول على اليمين، ويمكن الرجوع إليه أثناء إدخال البيانات.</p></div>}
+        <p className="im-file-hint">الملفات تحفظ في التخزين الخاص بالشركة بعد إنشاء الطلب أو حفظ الإرفاق. لا يُعتبر عرض الملف وحده حفظاً.</p>
+      </aside>}
+      <div className={documentWorkspace?"im-file-workspace-main":"im-file-default-main"}>
+        {documentWorkspace&&<div className="im-file-tabs" role="tablist" aria-label="أقسام ملف الاستيراد">
+          {tabs.map(([key,label])=><button key={key} type="button" role="tab" aria-selected={activeTab===key}
+            className={activeTab===key?"active":""} onClick={()=>setActiveTab(key)}>{label}</button>)}
+        </div>}
+        {documentWorkspace&&!orderId&&activeTab!=="info"&&<div className="im-info-strip"><Info size={18}/><p>املأ معلومات الطلبية واضغط «إنشاء طلب الشراء» أولاً لتفعيل هذا التبويب وحفظ بياناته على الطلب نفسه.</p></div>}
+        {documentWorkspace&&orderId&&activeTab==="payments"&&current&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
+          user={user} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
+        {documentWorkspace&&orderId&&(activeTab==="bl"||activeTab==="customs")&&current&&<ImportLogisticsPanel
+          view={activeTab==="bl"?"bl":"customs"} orderId={orderId} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
+        {documentWorkspace&&orderId&&activeTab==="tracking"&&<ImportTrackingPanel orderId={orderId} disabled={dirty}/>}
+        {documentWorkspace&&orderId&&current&&["payments","bl","customs"].includes(activeTab)&&
+          <details className="im-file-docs-disclosure">
+            <summary>مرفقات هذا التبويب — رفع وربط الإيصالات والبوالص والبيانات الجمركية</summary>
+            <ImportDocumentsPanel orderId={orderId} user={user}/>
+          </details>}
+    {documentWorkspace&&activeTab!=="info"?null:loading ? <div className="im-empty">جارٍ تحضير بيانات الطلب...</div> :
       isEditing&&!current ? <div className="im-empty"><ClipboardList size={30}/><strong>الطلب غير متاح</strong><Link href="/import/orders" className="btn btn-outline">العودة للقائمة</Link></div> :
       !isEditing&&!canManagePayments ?
         <div className="im-info-strip"><Info size={20}/><div><strong>إنشاء طلب شراء يحتاج صلاحية مالية</strong>
@@ -162,9 +269,21 @@ function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePa
             <label>تاريخ الطلب <span className="im-required">*</span>
               <input required type="date" value={form.orderDate} onChange={e=>setField("orderDate",e.target.value)}/>
             </label>
-            <label>رقم الفاتورة المبدئية
+            <label>مرجع المورّد <small>اختياري</small>
               <input maxLength={120} dir="ltr" placeholder="PI-2026-0001" value={form.supplierRef}
                 onChange={e=>setField("supplierRef",e.target.value)}/>
+            </label>
+            <label>رقم الفاتورة الأولية (PI)
+              <input maxLength={120} dir="ltr" placeholder="PI-2026-0001" value={form.proformaInvoiceNumber||""}
+                onChange={e=>setField("proformaInvoiceNumber",e.target.value)}/>
+            </label>
+            <label>رقم العقد
+              <input maxLength={120} dir="ltr" placeholder="CONT-2026-001" value={form.contractNumber||""}
+                onChange={e=>setField("contractNumber",e.target.value)}/>
+            </label>
+            <label>تاريخ العقد
+              <input type="date" value={form.contractDate||""}
+                onChange={e=>setField("contractDate",e.target.value||null)}/>
             </label>
             <label>شروط التسليم (Incoterm)
               <select value={form.incoterm} onChange={e=>setField("incoterm",e.target.value)}>
@@ -209,6 +328,10 @@ function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePa
                 <label>نوع الخيط <span className="im-required">*</span>
                   <input list="im-fiber-types" required maxLength={80} value={line.productType}
                     onChange={e=>setLineField(line.localKey,"productType",e.target.value)}/>
+                </label>
+                <label>الماركة / العلامة التجارية
+                  <input maxLength={100} dir="auto" value={line.brand||""}
+                    onChange={e=>setLineField(line.localKey,"brand",e.target.value)}/>
                 </label>
                 <label>Denier / Filament
                   <input maxLength={80} dir="ltr" placeholder="150/48" value={line.denier}
@@ -285,16 +408,19 @@ function OrderForm({orderId,canManagePayments,user}:{orderId?:string;canManagePa
           </div>
         </div>
         </form>}
-    {orderId&&current&&<ImportLogisticsPanel orderId={orderId} disabled={dirty}
+    {documentWorkspace&&orderId&&activeTab==="info"&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
+    {!documentWorkspace&&orderId&&current&&<ImportLogisticsPanel orderId={orderId} disabled={dirty}
       onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
-    {orderId&&current&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
+    {!documentWorkspace&&orderId&&current&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
       user={user} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
-    {orderId&&current&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
+    {!documentWorkspace&&orderId&&current&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
+      </div>
+    </div>
   </>;
 }
-export default function OrderEditor({orderId}:{orderId?:string}) {
+export default function OrderEditor({orderId,documentWorkspace=false}:{orderId?:string;documentWorkspace?:boolean}) {
   return <ImportShell section="orders" title={orderId?"تفاصيل طلب الشراء":"طلب شراء جديد"}
     description={orderId?"مراجعة البنود وتعديل المسودة.":"تسجيل طلب جديد بمواصفات الخيوط وأسعارها."}>
-    {user=> <OrderForm orderId={orderId} canManagePayments={user.canManagePayments} user={user}/>}
+    {user=> <OrderForm orderId={orderId} canManagePayments={user.canManagePayments} user={user} documentWorkspace={documentWorkspace}/>}
   </ImportShell>;
 }

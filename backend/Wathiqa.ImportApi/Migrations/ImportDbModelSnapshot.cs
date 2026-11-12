@@ -353,6 +353,14 @@ namespace Wathiqa.ImportApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("AdditionalFees")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("BrokerFees")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<Guid?>("BrokerId")
                         .HasColumnType("uuid");
 
@@ -360,16 +368,48 @@ namespace Wathiqa.ImportApi.Migrations
                         .HasMaxLength(180)
                         .HasColumnType("character varying(180)");
 
+                    b.Property<string>("ChargesCurrency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatedById")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("CustomsDutyAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("CustomsValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("DeclarationNumber")
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
+
+                    b.Property<DateOnly?>("DeliveredToWarehouseDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal?>("DemurrageFees")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("DetentionFees")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("DutyRatePercent")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)");
+
+                    b.Property<decimal?>("InlandTransportFees")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -393,6 +433,10 @@ namespace Wathiqa.ImportApi.Migrations
 
                     b.Property<DateOnly?>("SubmittedDate")
                         .HasColumnType("date");
+
+                    b.Property<decimal?>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -487,6 +531,11 @@ namespace Wathiqa.ImportApi.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("Consignee")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -505,8 +554,22 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("NotifyParty")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("OriginalReceivedDate")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("PackageCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PalletCount")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PortOfDischarge")
                         .IsRequired()
@@ -521,6 +584,14 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Property<int>("Revision")
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("ShippedOnBoardDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Shipper")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
 
                     b.Property<Guid?>("ShippingLineId")
                         .HasColumnType("uuid");
@@ -1017,6 +1088,11 @@ namespace Wathiqa.ImportApi.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("BankOrExchangeName")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
                     b.Property<Guid>("BeneficiaryCompanyId")
                         .HasColumnType("uuid");
 
@@ -1270,6 +1346,14 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Property<int>("ContainerCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateOnly?>("ContractDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ContractNumber")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1334,6 +1418,11 @@ namespace Wathiqa.ImportApi.Migrations
                         .HasMaxLength(25)
                         .HasColumnType("character varying(25)");
 
+                    b.Property<string>("ProformaInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<int>("Revision")
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
@@ -1397,6 +1486,11 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Brand")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("ColorType")
                         .IsRequired()
@@ -1520,6 +1614,77 @@ namespace Wathiqa.ImportApi.Migrations
                     b.HasIndex("TenantId", "OccurredAtUtc");
 
                     b.ToTable("SecurityAudits");
+                });
+
+            modelBuilder.Entity("Wathiqa.ImportApi.ShipmentTrackingReference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CarrierCode")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("LastSyncedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderStatus")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(90)
+                        .HasColumnType("character varying(90)");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<Guid>("ShipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "LastSyncedAtUtc");
+
+                    b.HasIndex("TenantId", "ShipmentId", "ReferenceType", "ReferenceNumber")
+                        .IsUnique();
+
+                    b.ToTable("ShipmentTrackingReferences", (string)null);
                 });
 
             modelBuilder.Entity("Wathiqa.ImportApi.StoredDocument", b =>
@@ -2271,6 +2436,18 @@ namespace Wathiqa.ImportApi.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("Wathiqa.ImportApi.ShipmentTrackingReference", b =>
+                {
+                    b.HasOne("Wathiqa.ImportApi.ImportShipment", "Shipment")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ShipmentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Shipment");
                 });
 
             modelBuilder.Entity("Wathiqa.ImportApi.StoredDocument", b =>

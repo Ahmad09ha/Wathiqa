@@ -77,7 +77,7 @@ public static class LogisticsApi
             var before=JsonSerializer.Serialize(Detail(shipment));
             var actor=CurrentTenant.UserId(principal);
             var now=DateTime.UtcNow;
-            Apply(shipment,input,line);
+            Apply(shipment,input,line,body.MetadataEdited);
             shipment.Revision++;
             shipment.UpdatedAtUtc=now;
             shipment.UpdatedById=actor;
@@ -226,7 +226,7 @@ public static class LogisticsApi
                 TenantId=shipment.TenantId,ShipmentId=id,
                 CreatedById=actor,CreatedAtUtc=now
             };
-            Apply(clearance,input,broker);
+            Apply(clearance,input,broker,isNew||body.ChargesEdited);
             clearance.UpdatedAtUtc=now;
             clearance.UpdatedById=actor;
             if(!isNew)clearance.Revision++;
@@ -244,12 +244,20 @@ public static class LogisticsApi
         });
     }
 
-    private static void Apply(ImportShipment entity,ValidatedShipment input,string? line)
+    private static void Apply(ImportShipment entity,ValidatedShipment input,string? line,bool metadataEdited = true)
     {
         entity.BlNumber=input.BlNumber;entity.BlType=input.BlType;
         entity.BlOriginalStatus=input.BlOriginalStatus;
         entity.ShippingLineId=input.ShippingLineId;entity.ShippingLineSnapshot=line;
         entity.Vessel=input.Vessel;entity.Voyage=input.Voyage;
+        if(metadataEdited)
+        {
+            entity.Shipper=input.Shipper;entity.Consignee=input.Consignee;
+            entity.NotifyParty=input.NotifyParty;
+            entity.ShippedOnBoardDate=input.ShippedOnBoardDate;
+            entity.OriginalReceivedDate=input.OriginalReceivedDate;
+            entity.PackageCount=input.PackageCount;entity.PalletCount=input.PalletCount;
+        }
         entity.PortOfLoading=input.PortOfLoading;entity.PortOfDischarge=input.PortOfDischarge;
         entity.Etd=input.Etd;entity.Eta=input.Eta;
         entity.FreeTimeDays=input.FreeTimeDays;entity.TrackingUrl=input.TrackingUrl;
@@ -263,11 +271,23 @@ public static class LogisticsApi
         entity.ArrivedAtPortDate=input.ArrivedAtPortDate;entity.DeliveredDate=input.DeliveredDate;
         entity.FreeTimeEndDate=input.FreeTimeEndDate;
     }
-    private static void Apply(ImportCustomsClearance entity,ValidatedClearance input,string? broker)
+    private static void Apply(ImportCustomsClearance entity,ValidatedClearance input,string? broker,bool chargesEdited)
     {
         entity.BrokerId=input.BrokerId;entity.BrokerSnapshot=broker;
         entity.DeclarationNumber=input.DeclarationNumber;entity.SubmittedDate=input.SubmittedDate;
         entity.ReleasedDate=input.ReleasedDate;entity.Status=input.Status;entity.Notes=input.Notes;
+        if(!chargesEdited)return;
+        entity.ChargesCurrency=input.ChargesCurrency;
+        entity.CustomsValue=input.CustomsValue;
+        entity.DutyRatePercent=input.DutyRatePercent;
+        entity.CustomsDutyAmount=input.CustomsDutyAmount;
+        entity.TaxAmount=input.TaxAmount;
+        entity.AdditionalFees=input.AdditionalFees;
+        entity.BrokerFees=input.BrokerFees;
+        entity.InlandTransportFees=input.InlandTransportFees;
+        entity.DemurrageFees=input.DemurrageFees;
+        entity.DetentionFees=input.DetentionFees;
+        entity.DeliveredToWarehouseDate=input.DeliveredToWarehouseDate;
     }
     private static async Task<string?> ShippingLine(ImportDb db,Guid? id)=>
         id is null?null:await db.Companies.AsNoTracking()
@@ -280,6 +300,8 @@ public static class LogisticsApi
     {
         x.Id,x.OrderId,x.BlNumber,x.BlType,x.BlOriginalStatus,
         x.ShippingLineId,x.ShippingLineSnapshot,x.Vessel,x.Voyage,
+        x.Shipper,x.Consignee,x.NotifyParty,x.ShippedOnBoardDate,
+        x.OriginalReceivedDate,x.PackageCount,x.PalletCount,
         x.PortOfLoading,x.PortOfDischarge,x.Etd,x.Eta,x.FreeTimeDays,
         x.TrackingUrl,x.Revision,
         Containers=x.Containers.Where(c=>!c.IsDeleted).OrderBy(c=>c.CreatedAtUtc)
@@ -295,7 +317,10 @@ public static class LogisticsApi
     private static object ClearanceDetail(ImportCustomsClearance c)=>new
     {
         c.Id,c.ShipmentId,c.BrokerId,c.BrokerSnapshot,c.DeclarationNumber,
-        c.SubmittedDate,c.ReleasedDate,c.Status,c.Notes,c.Revision
+        c.SubmittedDate,c.ReleasedDate,c.Status,c.Notes,c.Revision,
+        c.ChargesCurrency,c.CustomsValue,c.DutyRatePercent,c.CustomsDutyAmount,
+        c.TaxAmount,c.AdditionalFees,c.BrokerFees,c.InlandTransportFees,
+        c.DemurrageFees,c.DetentionFees,c.DeliveredToWarehouseDate
     };
     private static void AddAudit(ImportDb db,Guid tenant,Guid order,Guid shipment,
         string entityType,Guid entityId,string action,Guid actor,DateTime utc,

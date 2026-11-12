@@ -1,5 +1,6 @@
 ﻿import OrderEditor from "@/components/ImportOrderEditor";
-export default async function EditOrderPage({params}:{params:Promise<{id:string}>}){
+export default async function EditOrderPage({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<{mode?:string}>}){
   const {id}=await params;
-  return <OrderEditor orderId={id}/>;
+  const query=await searchParams;
+  return <OrderEditor orderId={id} documentWorkspace={query.mode==="file"}/>;
 }

@@ -16,6 +16,13 @@ public sealed class ImportShipment
     public string? ShippingLineSnapshot { get; set; }
     public string Vessel { get; set; } = "";
     public string Voyage { get; set; } = "";
+    public string Shipper { get; set; } = "";
+    public string Consignee { get; set; } = "";
+    public string NotifyParty { get; set; } = "";
+    public DateOnly? ShippedOnBoardDate { get; set; }
+    public DateOnly? OriginalReceivedDate { get; set; }
+    public int? PackageCount { get; set; }
+    public int? PalletCount { get; set; }
     public string PortOfLoading { get; set; } = "";
     public string PortOfDischarge { get; set; } = "";
     public DateOnly? Etd { get; set; }
@@ -71,6 +78,19 @@ public sealed class ImportCustomsClearance
     public DateOnly? ReleasedDate { get; set; }
     public string Status { get; set; } = "NotStarted";
     public string Notes { get; set; } = "";
+    // Customs amounts are informational declarations in ChargesCurrency.
+    // They are NOT posted to the audited order payment/expense ledger.
+    public string ChargesCurrency { get; set; } = "USD";
+    public decimal? CustomsValue { get; set; }
+    public decimal? DutyRatePercent { get; set; }
+    public decimal? CustomsDutyAmount { get; set; }
+    public decimal? TaxAmount { get; set; }
+    public decimal? AdditionalFees { get; set; }
+    public decimal? BrokerFees { get; set; }
+    public decimal? InlandTransportFees { get; set; }
+    public decimal? DemurrageFees { get; set; }
+    public decimal? DetentionFees { get; set; }
+    public DateOnly? DeliveredToWarehouseDate { get; set; }
     public int Revision { get; set; } = 1;
     public Guid CreatedById { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -26,10 +26,19 @@ const clearances:Record<ClearanceStatus,string>={
   NotStarted:"لم يبدأ",MissingDocs:"مستندات ناقصة",UnderInspection:"قيد الكشف",
   FeesPaid:"الرسوم مدفوعة",Released:"تم الإفراج"
 };
+const customsAmounts=[
+  ["customsValue","القيمة الجمركية"],["dutyRatePercent","نسبة الرسوم الجمركية (%)"],
+  ["customsDutyAmount","الرسوم الجمركية"],["taxAmount","الضرائب"],
+  ["additionalFees","رسوم إضافية"],["brokerFees","أجور التخليص"],
+  ["inlandTransportFees","النقل الداخلي"],["demurrageFees","غرامة الأرضيات (Demurrage)"],
+  ["detentionFees","غرامة الحاويات (Detention)"]
+] as const;
 const statusOrder:ContainerStatus[]=["Planned","AtSea","AtPort","Delivered"];
 function initialShipment():ShipmentInput {
   return {blNumber:"",blType:"Original",blOriginalStatus:"NotReceived",
     shippingLineId:null,vessel:"",voyage:"",portOfLoading:"",portOfDischarge:"",
+    shipper:"",consignee:"",notifyParty:"",shippedOnBoardDate:null,
+    originalReceivedDate:null,packageCount:null,palletCount:null,metadataEdited:true,
     etd:null,eta:null,freeTimeDays:0,trackingUrl:"",revision:null};
 }
 function initialContainer():ContainerInput {
@@ -39,7 +48,10 @@ function initialContainer():ContainerInput {
 }
 function initialClearance():CustomsInput {
   return {brokerId:null,declarationNumber:"",submittedDate:null,releasedDate:null,
-    status:"NotStarted",notes:"",revision:null};
+    status:"NotStarted",notes:"",revision:null,chargesCurrency:"USD",
+    customsValue:null,dutyRatePercent:null,customsDutyAmount:null,
+    taxAmount:null,additionalFees:null,brokerFees:null,inlandTransportFees:null,
+    demurrageFees:null,detentionFees:null,deliveredToWarehouseDate:null,chargesEdited:true};
 }
 function dateInput(value:string|null,update:(value:string|null)=>void) {
   return {type:"date" as const,value:value||"",onChange:(e:React.ChangeEvent<HTMLInputElement>)=>update(e.target.value||null)};
@@ -50,9 +62,9 @@ function labelDate(value:string|null) {
 }
 
 export default function ImportLogisticsPanel({
-  orderId,disabled,onChanged
+  orderId,disabled,onChanged,view="all"
 }:{
-  orderId:string;disabled:boolean;onChanged:()=>Promise<void>;
+  orderId:string;disabled:boolean;onChanged:()=>Promise<void>;view?:"all"|"bl"|"customs";
 }){
   const {notify}=useToast();
   const [shipments,setShipments]=useState<Shipment[]>([]);
@@ -88,7 +100,19 @@ export default function ImportLogisticsPanel({
       submittedDate:selected.clearance.submittedDate,
       releasedDate:selected.clearance.releasedDate,
       status:selected.clearance.status,notes:selected.clearance.notes,
-      revision:selected.clearance.revision
+      revision:selected.clearance.revision,
+      chargesCurrency:selected.clearance.chargesCurrency||"USD",
+      customsValue:selected.clearance.customsValue,
+      dutyRatePercent:selected.clearance.dutyRatePercent,
+      customsDutyAmount:selected.clearance.customsDutyAmount,
+      taxAmount:selected.clearance.taxAmount,
+      additionalFees:selected.clearance.additionalFees,
+      brokerFees:selected.clearance.brokerFees,
+      inlandTransportFees:selected.clearance.inlandTransportFees,
+      demurrageFees:selected.clearance.demurrageFees,
+      detentionFees:selected.clearance.detentionFees,
+      deliveredToWarehouseDate:selected.clearance.deliveredToWarehouseDate
+      ,chargesEdited:true
     }:initialClearance());
     setShowContainerForm(false);
     setContainerEditId(null);
@@ -170,6 +194,12 @@ export default function ImportLogisticsPanel({
         blOriginalStatus:shipment.blOriginalStatus,
         shippingLineId:shipment.shippingLineId,
         vessel:shipment.vessel,voyage:shipment.voyage,
+        shipper:shipment.shipper,consignee:shipment.consignee,
+        notifyParty:shipment.notifyParty,
+        shippedOnBoardDate:shipment.shippedOnBoardDate,
+        originalReceivedDate:shipment.originalReceivedDate,
+        packageCount:shipment.packageCount,palletCount:shipment.palletCount,
+        metadataEdited:true,
         portOfLoading:shipment.portOfLoading,portOfDischarge:shipment.portOfDischarge,
         etd:shipment.etd,eta:shipment.eta,freeTimeDays:shipment.freeTimeDays,
         trackingUrl:shipment.trackingUrl,revision:shipment.revision
@@ -208,11 +238,11 @@ export default function ImportLogisticsPanel({
     await run(()=>deleteContainer(target.id,target.revision),"تم حذف الحاوية المخططة",()=>setDeleting(null));
   }
 
-  return <section className="im-logistics" aria-label="الشحنات والبوالص">
+  return <section className={"im-logistics im-logistics-view-"+view} aria-label={view==="customs"?"التخليص الجمركي":"الشحنات والبوالص"}>
     <div className="im-logistics-heading">
-      <div><span className="im-eyebrow">عمليات الشحن / نفس طلب الشراء</span>
-        <h2><Ship size={21}/> بوالص الشحن والحاويات</h2>
-        <p>كل بوليصة شحن تابعة لهذا الطلب فقط، مع حاوياتها وتخليصها المستقل.</p>
+       <div><span className="im-eyebrow">عمليات الشحن / نفس طلب الشراء</span>
+         <h2><Ship size={21}/> {view==="customs"?"التخليص الجمركي": "بوالص الشحن والحاويات"}</h2>
+         <p>{view==="customs"?"اختر البوليصة لعرض وتحديث بيان التخليص والرسوم وأيام السماح.": "كل بوليصة شحن تابعة لهذا الطلب فقط، مع حاوياتها وتخليصها المستقل."}</p>
       </div>
       <div className="im-logistics-actions">
         <button type="button" className="btn btn-outline" disabled={saving} onClick={()=>void reload()} title="تحديث بيانات الشحن"><RefreshCw size={16}/> تحديث</button>
@@ -244,6 +274,25 @@ export default function ImportLogisticsPanel({
           <input dir="auto" maxLength={140} value={shipmentDraft.vessel} onChange={e=>setShipment("vessel",e.target.value)}/></label>
         <label>رقم الرحلة
           <input dir="ltr" maxLength={80} value={shipmentDraft.voyage} onChange={e=>setShipment("voyage",e.target.value)}/></label>
+        <label>الشاحن (Shipper)
+          <input dir="auto" maxLength={180} value={shipmentDraft.shipper}
+            onChange={e=>setShipment("shipper",e.target.value)}/></label>
+        <label>المرسل إليه (Consignee)
+          <input dir="auto" maxLength={180} value={shipmentDraft.consignee}
+            onChange={e=>setShipment("consignee",e.target.value)}/></label>
+        <label>جهة الإشعار (Notify Party)
+          <input dir="auto" maxLength={180} value={shipmentDraft.notifyParty}
+            onChange={e=>setShipment("notifyParty",e.target.value)}/></label>
+        <label>تاريخ الشحن على الباخرة (On Board)
+          <input {...dateInput(shipmentDraft.shippedOnBoardDate,v=>setShipment("shippedOnBoardDate",v))}/></label>
+        <label>تاريخ وصول أصل البوليصة
+          <input {...dateInput(shipmentDraft.originalReceivedDate,v=>setShipment("originalReceivedDate",v))}/></label>
+        <label>عدد الطرود
+          <input type="number" min={0} step={1} value={shipmentDraft.packageCount??""}
+            onChange={e=>setShipment("packageCount",e.target.value===""?null:Number(e.target.value))}/></label>
+        <label>عدد الباليتات
+          <input type="number" min={0} step={1} value={shipmentDraft.palletCount??""}
+            onChange={e=>setShipment("palletCount",e.target.value===""?null:Number(e.target.value))}/></label>
         <label>ميناء التحميل
           <input dir="auto" maxLength={160} value={shipmentDraft.portOfLoading} onChange={e=>setShipment("portOfLoading",e.target.value)}/></label>
         <label>ميناء التفريغ
@@ -293,6 +342,12 @@ export default function ImportLogisticsPanel({
             <div><small>الوصول المتوقع</small><strong>{labelDate(selected.eta)}</strong></div>
             <div><small>الباخرة / الرحلة</small><strong dir="auto">{[selected.vessel,selected.voyage].filter(Boolean).join(" / ")||"—"}</strong></div>
             <div><small>Free Time</small><strong>{selected.freeTimeDays} يوم</strong></div>
+            <div><small>الشاحن</small><strong>{selected.shipper||"—"}</strong></div>
+            <div><small>المرسل إليه</small><strong>{selected.consignee||"—"}</strong></div>
+            <div><small>جهة الإشعار</small><strong>{selected.notifyParty||"—"}</strong></div>
+            <div><small>تاريخ الشحن على الباخرة</small><strong>{labelDate(selected.shippedOnBoardDate)}</strong></div>
+            <div><small>استلام أصل البوليصة</small><strong>{labelDate(selected.originalReceivedDate)}</strong></div>
+            <div><small>الطرود / الباليتات</small><strong>{selected.packageCount??"—"} / {selected.palletCount??"—"}</strong></div>
           </div>
           <div className="im-logistics-subhead">
             <div><ContainerIcon size={20}/><strong>حاويات هذه البوليصة</strong></div>
@@ -317,7 +372,7 @@ export default function ImportLogisticsPanel({
                 </tr>)}</tbody>
               </table>
             </div>}
-          {showContainerForm&&<form className="im-logistics-form im-logistics-inner-form" onSubmit={saveContainer}>
+          {showContainerForm&&<form className="im-logistics-form im-logistics-inner-form im-logistics-container-form" onSubmit={saveContainer}>
             <div className="im-logistics-form-title"><strong>{containerEditId?"تحديث الحاوية":"إضافة حاوية جديدة"}</strong>
               <p>رقم ISO 6346 يُتحقق منه آلياً، والإنذار لا يختفي إلا بإقرار منك.</p></div>
             <div className="im-logistics-fields">
@@ -368,6 +423,15 @@ export default function ImportLogisticsPanel({
             <div><FileCheck2 size={20}/><strong>التخليص الجمركي لهذه البوليصة</strong></div>
             {selected.clearance&&<span className="im-pill">{clearances[selected.clearance.status]}</span>}
           </div>
+          {view==="customs"&&selected.containers.some(c=>c.freeTimeEndDate)&&
+            <div className="im-info-strip"><Info size={18}/><div>
+              <strong>الأيام المجانية بحسب كل حاوية</strong>
+              {selected.containers.filter(c=>c.freeTimeEndDate&&c.status!=="Delivered").map(c=>{
+                const today=new Date().toISOString().slice(0,10);
+                const days=Math.round((Date.parse(c.freeTimeEndDate+"T00:00:00Z")-Date.parse(today+"T00:00:00Z"))/86400000);
+                return <p key={c.id}><span dir="ltr">{c.number}</span> — {days>=0?days+" يوم متبقٍ":"انتهت منذ "+(-days)+" يوم"}</p>;
+              })}
+            </div></div>}
           <form className="im-logistics-form im-logistics-inner-form" onSubmit={saveCustoms}>
             <div className="im-logistics-fields">
               <label>المخلّص الجمركي
@@ -385,10 +449,24 @@ export default function ImportLogisticsPanel({
                 <input {...dateInput(clearanceDraft.submittedDate,v=>setClearance("submittedDate",v))}/></label>
               <label>تاريخ الإفراج
                 <input {...dateInput(clearanceDraft.releasedDate,v=>setClearance("releasedDate",v))}/></label>
+              <label>تاريخ التسليم للمستودع
+                <input {...dateInput(clearanceDraft.deliveredToWarehouseDate,v=>setClearance("deliveredToWarehouseDate",v))}/></label>
+              <label>عملة القيم الجمركية
+                <select value={clearanceDraft.chargesCurrency}
+                  onChange={e=>setClearance("chargesCurrency",e.target.value)}>
+                  {["USD","EUR","CNY","TRY","SYP"].map(c=><option value={c} key={c}>{c}</option>)}
+                </select></label>
+              {customsAmounts.map(([key,title])=><label key={key}>{title}
+                <input type="number" min="0" max={key==="dutyRatePercent"?100:undefined}
+                  step={key==="dutyRatePercent"?"0.0001":"0.01"}
+                  value={clearanceDraft[key]??""}
+                  onChange={e=>setClearance(key,e.target.value===""?null:Number(e.target.value))}/>
+              </label>)}
               <label className="im-logistics-notes">ملاحظات التخليص
                 <textarea rows={2} maxLength={3000} value={clearanceDraft.notes}
                   onChange={e=>setClearance("notes",e.target.value)}/></label>
             </div>
+            <p className="im-track-source">مبالغ التخليص معلومات مسجلة بهذه العملة فقط، ولا تُعتبر دفعات بنكية مؤكّدة ولا تُخصم من رصيد طلب الشراء. لتسديد مصروف فعلي استخدم تبويب الدفوعات مع مستنده.</p>
             <div className="im-logistics-form-actions">
               <button type="submit" className="btn primary" disabled={saving||disabled}>
                 {saving?"جارٍ الحفظ...":"حفظ حالة التخليص"}</button>

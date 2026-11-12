@@ -15,6 +15,9 @@ public sealed class PurchaseOrder
     public TenantCompany? Customer { get; set; }
     public string? CustomerNameSnapshot { get; set; }
     public string SupplierRef { get; set; } = "";
+    public string ProformaInvoiceNumber { get; set; } = "";
+    public string ContractNumber { get; set; } = "";
+    public DateOnly? ContractDate { get; set; }
     public DateOnly OrderDate { get; set; }
     public string Incoterm { get; set; } = "FOB";
     public string LoadingPort { get; set; } = "";
@@ -50,6 +53,7 @@ public sealed class PurchaseOrderItem
     public PurchaseOrder Order { get; set; } = null!;
     public int Position { get; set; }
     public string ProductType { get; set; } = "";
+    public string Brand { get; set; } = "";
     public string Denier { get; set; } = "";
     public string Luster { get; set; } = "";
     public string Grade { get; set; } = "";

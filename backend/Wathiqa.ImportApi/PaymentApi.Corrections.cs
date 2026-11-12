@@ -5,7 +5,7 @@ namespace Wathiqa.ImportApi;
 
 public sealed record CorrectTransferInput(decimal Amount,DateOnly TransferDate,
     string? Method,string? Reference,Guid ProofDocumentId,string? Reason,
-    Guid IdempotencyKey,int? Revision);
+    Guid IdempotencyKey,int? Revision,string? BankOrExchangeName=null);
 public sealed record ReturnTransferInput(decimal Amount,DateOnly ReturnDate,
     string? BankReference,Guid ProofDocumentId,string? Reason,
     Guid IdempotencyKey,int? Revision);
@@ -33,13 +33,18 @@ public static partial class PaymentApi
         var reference=input.Reference?.Trim()??"";
         if(!PaymentWriteRules.AmountOk(input.Amount)||!PaymentWriteRules.DateOk(input.TransferDate)||
             !PaymentWriteRules.ReasonOk(reason)||
-            method is not ("BankTransfer" or "LC" or "Cash" or "Other")||
+            method is not ("BankTransfer" or "LC" or "Cash" or "Other" or "ExchangeOffice")||
             !PaymentWriteRules.TextOk(reference)||
+            !PaymentWriteRules.TextOk(input.BankOrExchangeName??"",180)||
             !PaymentWriteRules.IdempotencyOk(input.IdempotencyKey))
             return PaymentWriteRules.Error("invalid_transfer_correction");
         var tenant=CurrentTenant.Id(user);var actor=CurrentTenant.UserId(user);
-        var hash=PaymentWriteRules.Hash(new{orderId,transferId,input.Amount,input.TransferDate,
-            method,reference,input.ProofDocumentId,reason});
+        var hash=input.BankOrExchangeName is null
+            ?PaymentWriteRules.Hash(new{orderId,transferId,input.Amount,input.TransferDate,
+                method,reference,input.ProofDocumentId,reason})
+            :PaymentWriteRules.Hash(new{orderId,transferId,input.Amount,input.TransferDate,
+                method,reference,input.ProofDocumentId,reason,
+                BankOrExchangeName=input.BankOrExchangeName.Trim()});
         await using var transaction=await db.Database.BeginTransactionAsync();
         var order=await PaymentWriteRules.LockOrder(db,tenant,orderId);
         if(order is null)return Results.NotFound();
@@ -70,6 +75,8 @@ public static partial class PaymentApi
             TenantId=tenant,OrderId=orderId,Amount=input.Amount,
             BeneficiaryCompanyId=old.BeneficiaryCompanyId,BeneficiarySnapshot=old.BeneficiarySnapshot,
             TransferDate=input.TransferDate,Method=method,Reference=reference,
+            BankOrExchangeName=input.BankOrExchangeName is null
+                ? old.BankOrExchangeName : input.BankOrExchangeName.Trim(),
             ProofDocumentId=input.ProofDocumentId,ReplacesTransferId=old.Id,
             IdempotencyKey=input.IdempotencyKey,RequestHash=hash,CreatedById=actor
         };

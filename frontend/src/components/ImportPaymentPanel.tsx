@@ -19,12 +19,13 @@ const actions: {key:FinanceAction;label:string}[] = [
 ];
 type FormDataState={
   amount:string;kind:string;date:string;notes:string;
-  beneficiaryId:string;method:string;reference:string;proofDocumentId:string;
+  beneficiaryId:string;method:string;reference:string;bankOrExchangeName:string;proofDocumentId:string;
   category:string;description:string;expenseId:string;transferId:string;reason:string;
 };
 function defaultForm(supplierId:string):FormDataState{
   return{amount:"",kind:"Advance",date:new Date().toISOString().slice(0,10),
     notes:"",beneficiaryId:supplierId,method:"BankTransfer",reference:"",
+    bankOrExchangeName:"",
     proofDocumentId:"",category:"Other",description:"",expenseId:"",transferId:"",reason:""};
 }
 const currencyAmount=(amount:number,currency:string)=>
@@ -91,15 +92,16 @@ export default function ImportPaymentPanel({orderId,supplierId,user,disabled,onC
     let input:Record<string,unknown>={revision,idempotencyKey:key};
     if(action==="schedule")input={...input,kind:form.kind,amount,dueDate:form.date,notes:form.notes};
     if(action==="transfer")input={...input,amount,transferDate:form.date,
-      beneficiaryCompanyId:form.beneficiaryId,method:form.method,reference:form.reference,
+       beneficiaryCompanyId:form.beneficiaryId,method:form.method,reference:form.reference,
+       bankOrExchangeName:form.bankOrExchangeName,
       proofDocumentId:form.proofDocumentId};
     if(action==="expense")input={...input,amount,category:form.category,
       payeeCompanyId:form.beneficiaryId,description:form.description,
       evidenceDocumentId:form.proofDocumentId};
     if(action==="allocation")input={...input,transferId:form.transferId,amount};
     if(action==="correct")input={...input,amount,transferDate:form.date,
-      method:form.method,reference:form.reference,proofDocumentId:form.proofDocumentId,
-      reason:form.reason};
+       method:form.method,reference:form.reference,proofDocumentId:form.proofDocumentId,
+       bankOrExchangeName:form.bankOrExchangeName,reason:form.reason};
     if(action==="return")input={...input,amount,returnDate:form.date,
       bankReference:form.reference,proofDocumentId:form.proofDocumentId,reason:form.reason};
     if(action==="close"||action==="cancel")input={revision,reason:form.reason};
@@ -184,7 +186,8 @@ export default function ImportPaymentPanel({orderId,supplierId,user,disabled,onC
         {financial.transfers.length===0?<p>لا توجد حوالات مسجّلة حتى الآن.</p>:<div className="im-table-scroll" data-lenis-prevent>
           <table className="im-table"><thead><tr><th>المستفيد</th><th>التاريخ</th><th>الحوالة</th><th>للبضاعة</th><th>للمصاريف</th><th>المتاح</th><th>الحالة</th></tr></thead>
           <tbody>{financial.transfers.map(t=><tr key={t.id}>
-            <td>{t.beneficiarySnapshot}<small dir="ltr">{t.reference||t.id}</small></td>
+            <td>{t.beneficiarySnapshot}<small dir="ltr">{t.reference||t.id}</small>
+              {t.bankOrExchangeName&&<small>{t.bankOrExchangeName}</small>}</td>
             <td>{dateLabel(t.transferDate)}</td>
             <td dir="ltr">{currencyAmount(t.amount,money)}</td>
             <td dir="ltr">{currencyAmount(t.commercialApplied,money)}</td>
@@ -246,9 +249,14 @@ export default function ImportPaymentPanel({orderId,supplierId,user,disabled,onC
             </label>
             {action!=="return"&&<label>طريقة الدفع
               <select value={form.method} onChange={e=>change("method",e.target.value)}>
-                <option value="BankTransfer">تحويل بنكي</option><option value="LC">اعتماد مستندي</option>
+                 <option value="BankTransfer">حوالة بنكية T/T</option><option value="LC">اعتماد مستندي L/C</option>
+                 <option value="ExchangeOffice">شركة صرافة</option>
                 <option value="Cash">نقداً</option><option value="Other">أخرى</option>
-              </select></label>}
+               </select></label>}
+            {action!=="return"&&<label>البنك أو شركة الصرافة المستخدمة
+              <input maxLength={180} value={form.bankOrExchangeName}
+                onChange={e=>change("bankOrExchangeName",e.target.value)}/>
+            </label>}
             <label>{action==="return"?"مرجع الاسترداد البنكي":"مرجع الحوالة"}
               <input data-finance-field="reference" maxLength={160} required={action==="return"} value={form.reference}
                 onChange={e=>change("reference",e.target.value)}/>

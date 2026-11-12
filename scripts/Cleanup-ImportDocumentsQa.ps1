@@ -1,10 +1,11 @@
 ﻿# WP-07 targeted test cleanup, local isolated import DB only.
 # Dry-run default. -Apply removes only generated WP07_QA fixtures and their private blobs.
-param([switch]$Apply)
+param([switch]$Apply,[string]$Run)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $local=Join-Path $root '.local'
-$files=@(Get-ChildItem $local -Filter 'documents-qa-fixtures-WP07_QA_*.json' -File -ErrorAction SilentlyContinue)
+$files=@(Get-ChildItem $local -Filter 'documents-qa-fixtures-WP07_QA_*.json' -File -ErrorAction SilentlyContinue |
+  Where-Object { -not $Run -or $_.Name -eq ('documents-qa-fixtures-'+$Run+'.json') })
 if($files.Count -eq 0){Write-Output 'NO_WP07_QA_FIXTURES';exit 0}
 $psql='C:\Program Files\PostgreSQL\18\bin\psql.exe'
 $env:PGPASSFILE=Join-Path $local 'import-pgpass.conf'

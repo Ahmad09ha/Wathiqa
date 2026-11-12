@@ -210,6 +210,9 @@ public static class OrderApi
                 CustomerId = body.CustomerId,
                 CustomerNameSnapshot = parties.Value.Customer,
                 SupplierRef = input.SupplierRef, OrderDate = input.OrderDate,
+                ProformaInvoiceNumber = body.ProformaInvoiceNumber is null
+                    ? input.SupplierRef : input.ProformaInvoiceNumber,
+                ContractNumber = input.ContractNumber, ContractDate = input.ContractDate,
                 Incoterm = input.Incoterm, LoadingPort = input.LoadingPort,
                 DischargePort = input.DischargePort, Currency = input.Currency,
                 Notes = input.Notes, TotalAmount = input.TotalAmount,
@@ -282,6 +285,14 @@ public static class OrderApi
             order.CustomerId = body.CustomerId;
             order.CustomerNameSnapshot = parties.Value.Customer;
             order.SupplierRef = input.SupplierRef;
+            // Older clients know only SupplierRef. Do not erase new metadata
+            // when such a client edits an unrelated draft field.
+            if (body.ProformaInvoiceNumber is not null)
+                order.ProformaInvoiceNumber = input.ProformaInvoiceNumber;
+            if (body.ContractNumber is not null)
+                order.ContractNumber = input.ContractNumber;
+            if (body.MetadataEdited)
+                order.ContractDate = input.ContractDate;
             order.OrderDate = input.OrderDate;
             order.Incoterm = input.Incoterm;
             order.LoadingPort = input.LoadingPort;
@@ -426,6 +437,7 @@ public static class OrderApi
     {
         item.Position = position;
         item.ProductType = line.ProductType;
+        if(line.Brand is not null)item.Brand = line.Brand;
         item.Denier = line.Denier;
         item.Luster = line.Luster;
         item.Grade = line.Grade;
@@ -444,6 +456,7 @@ public static class OrderApi
         x.Id, x.TenantId, x.Number, x.NumberYear, x.SupplierId,
         x.SupplierNameSnapshot, x.CustomerId, x.CustomerNameSnapshot,
         x.SupplierRef, x.OrderDate, x.Incoterm, x.LoadingPort,
+        x.ProformaInvoiceNumber, x.ContractNumber, x.ContractDate,
         x.DischargePort, x.Currency, x.Notes, x.TotalAmount,
         PaidAmount = finance?.AppliedCommercial, RemainingAmount = finance?.CommercialRemainingDue,
         PaymentStatus = finance?.PaymentStatus, FinancialsAvailable = finance is not null,
@@ -453,7 +466,7 @@ public static class OrderApi
         x.CreatedAtUtc, x.CreatedById, x.UpdatedAtUtc, x.UpdatedById,
         Items = x.Items.OrderBy(i => i.Position).Select(i => new
         {
-            i.Id, i.Position, i.ProductType, i.Denier, i.Luster, i.Grade,
+            i.Id, i.Position, i.ProductType, i.Brand, i.Denier, i.Luster, i.Grade,
             i.ColorType, i.QuantityKg, i.UnitPrice, i.PriceUnit,
             i.LineTotal, i.HsCode
         }).ToArray()

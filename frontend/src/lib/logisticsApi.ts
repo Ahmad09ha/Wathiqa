@@ -7,7 +7,11 @@ export type ClearanceStatus = "NotStarted"|"MissingDocs"|"UnderInspection"|"Fees
 
 export interface ShipmentInput {
  blNumber:string;blType:BlType;blOriginalStatus:BlOriginalStatus;
- shippingLineId:string|null;vessel:string;voyage:string;
+  shippingLineId:string|null;vessel:string;voyage:string;
+  shipper:string;consignee:string;notifyParty:string;
+  shippedOnBoardDate:string|null;originalReceivedDate:string|null;
+  packageCount:number|null;palletCount:number|null;
+  metadataEdited?:boolean;
  portOfLoading:string;portOfDischarge:string;
  etd:string|null;eta:string|null;freeTimeDays:number;trackingUrl:string;
  revision:number|null;
@@ -20,8 +24,13 @@ export interface ContainerInput {
  revision:number|null;
 }
 export interface CustomsInput {
- brokerId:string|null;declarationNumber:string;submittedDate:string|null;
- releasedDate:string|null;status:ClearanceStatus;notes:string;revision:number|null;
+  brokerId:string|null;declarationNumber:string;submittedDate:string|null;
+  releasedDate:string|null;status:ClearanceStatus;notes:string;revision:number|null;
+  chargesCurrency:string;customsValue:number|null;dutyRatePercent:number|null;
+  customsDutyAmount:number|null;taxAmount:number|null;additionalFees:number|null;
+  brokerFees:number|null;inlandTransportFees:number|null;demurrageFees:number|null;
+  detentionFees:number|null;deliveredToWarehouseDate:string|null;
+  chargesEdited?:boolean;
 }
 export interface LogisticsContainer extends Omit<ContainerInput,"acknowledgeInvalidDigit"> {
  id:string;shipmentId:string;checkDigitValid:boolean;

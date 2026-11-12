@@ -12,7 +12,11 @@ public sealed class LogisticsValidationException(string code) : Exception(code)
 public sealed record ShipmentInput(
     string? BlNumber, string? BlType, string? BlOriginalStatus, Guid? ShippingLineId,
     string? Vessel, string? Voyage, string? PortOfLoading, string? PortOfDischarge,
-    DateOnly? Etd, DateOnly? Eta, int FreeTimeDays, string? TrackingUrl, int? Revision);
+    DateOnly? Etd, DateOnly? Eta, int FreeTimeDays, string? TrackingUrl, int? Revision,
+    string? Shipper = null, string? Consignee = null, string? NotifyParty = null,
+    DateOnly? ShippedOnBoardDate = null, DateOnly? OriginalReceivedDate = null,
+    int? PackageCount = null, int? PalletCount = null,
+    bool MetadataEdited = false);
 
 public sealed record ContainerInput(
     string? Number, string? Size, string? SealNumber, decimal? GrossWeightKg,
@@ -22,12 +26,22 @@ public sealed record ContainerInput(
 
 public sealed record ClearanceInput(
     Guid? BrokerId, string? DeclarationNumber, DateOnly? SubmittedDate,
-    DateOnly? ReleasedDate, string? Status, string? Notes, int? Revision);
+    DateOnly? ReleasedDate, string? Status, string? Notes, int? Revision,
+    string? ChargesCurrency = null, decimal? CustomsValue = null,
+    decimal? DutyRatePercent = null, decimal? CustomsDutyAmount = null,
+    decimal? TaxAmount = null, decimal? AdditionalFees = null,
+    decimal? BrokerFees = null, decimal? InlandTransportFees = null,
+    decimal? DemurrageFees = null, decimal? DetentionFees = null,
+    DateOnly? DeliveredToWarehouseDate = null,
+    bool ChargesEdited = false);
 
 public sealed record ValidatedShipment(
     string BlNumber, string BlType, string BlOriginalStatus, Guid? ShippingLineId,
     string Vessel, string Voyage, string PortOfLoading, string PortOfDischarge,
-    DateOnly? Etd, DateOnly? Eta, int FreeTimeDays, string TrackingUrl);
+    DateOnly? Etd, DateOnly? Eta, int FreeTimeDays, string TrackingUrl,
+    string Shipper = "", string Consignee = "", string NotifyParty = "",
+    DateOnly? ShippedOnBoardDate = null, DateOnly? OriginalReceivedDate = null,
+    int? PackageCount = null, int? PalletCount = null);
 
 public sealed record ValidatedContainer(
     string Number, string Size, string SealNumber, decimal? GrossWeightKg,
@@ -36,7 +50,12 @@ public sealed record ValidatedContainer(
 
 public sealed record ValidatedClearance(
     Guid? BrokerId, string DeclarationNumber, DateOnly? SubmittedDate, DateOnly? ReleasedDate,
-    string Status, string Notes);
+    string Status, string Notes, string ChargesCurrency = "USD",
+    decimal? CustomsValue = null, decimal? DutyRatePercent = null,
+    decimal? CustomsDutyAmount = null, decimal? TaxAmount = null,
+    decimal? AdditionalFees = null, decimal? BrokerFees = null,
+    decimal? InlandTransportFees = null, decimal? DemurrageFees = null,
+    decimal? DetentionFees = null, DateOnly? DeliveredToWarehouseDate = null);
 
 public static class LogisticsValidation
 {
@@ -60,6 +79,14 @@ public static class LogisticsValidation
         if(input.ShippingLineId==Guid.Empty) Invalid("invalid_shipping_line");
         var vessel=Text(input.Vessel,140,"invalid_vessel");
         var voyage=Text(input.Voyage,80,"invalid_voyage");
+        var shipper=Text(input.Shipper,180,"invalid_shipper");
+        var consignee=Text(input.Consignee,180,"invalid_consignee");
+        var notify=Text(input.NotifyParty,180,"invalid_notify_party");
+        if(!DateOk(input.ShippedOnBoardDate)||!DateOk(input.OriginalReceivedDate))
+            Invalid("invalid_shipment_dates");
+        if(input.PackageCount is < 0 or > 10000000 ||
+           input.PalletCount is < 0 or > 10000000)
+            Invalid("invalid_packages_count");
         var loading=Text(input.PortOfLoading,160,"invalid_loading_port");
         var discharge=Text(input.PortOfDischarge,160,"invalid_discharge_port");
         if(input.FreeTimeDays is < 0 or > 180) Invalid("invalid_free_time");
@@ -72,7 +99,9 @@ public static class LogisticsValidation
             url.UserInfo.Length>0))
             Invalid("invalid_tracking_url");
         return new ValidatedShipment(number,type,status,input.ShippingLineId,vessel,voyage,
-            loading,discharge,input.Etd,input.Eta,input.FreeTimeDays,tracking);
+            loading,discharge,input.Etd,input.Eta,input.FreeTimeDays,tracking,
+            shipper,consignee,notify,input.ShippedOnBoardDate,input.OriginalReceivedDate,
+            input.PackageCount,input.PalletCount);
     }
 
     public static ValidatedContainer Check(ContainerInput input, string? priorStatus=null)
@@ -116,6 +145,22 @@ public static class LogisticsValidation
         if(input.BrokerId==Guid.Empty) Invalid("invalid_broker");
         var declaration=Text(input.DeclarationNumber,120,"invalid_declaration_number");
         var notes=Text(input.Notes,3000,"invalid_notes");
+        var currency=(input.ChargesCurrency??"USD").Trim().ToUpperInvariant();
+        if(currency is not ("USD" or "EUR" or "CNY" or "TRY" or "SYP"))
+            Invalid("invalid_customs_currency");
+        var amounts=new[]{input.CustomsValue,input.CustomsDutyAmount,input.TaxAmount,
+            input.AdditionalFees,input.BrokerFees,input.InlandTransportFees,
+            input.DemurrageFees,input.DetentionFees};
+        if(amounts.Any(x=>x is < 0 or > 1_000_000_000_000m ||
+                         (x.HasValue && x!=decimal.Round(x.Value,2))))
+            Invalid("invalid_customs_amount");
+        if(input.DutyRatePercent is < 0 or > 100 ||
+           (input.DutyRatePercent is { } rate && rate != decimal.Round(rate,4)))
+            Invalid("invalid_customs_rate");
+        if(!DateOk(input.DeliveredToWarehouseDate)||
+           (input.ReleasedDate.HasValue && input.DeliveredToWarehouseDate.HasValue &&
+            input.DeliveredToWarehouseDate<input.ReleasedDate))
+            Invalid("invalid_customs_warehouse_date");
         if(!DateOk(input.SubmittedDate)||!DateOk(input.ReleasedDate) ||
             (input.SubmittedDate.HasValue && input.ReleasedDate.HasValue &&
              input.ReleasedDate<input.SubmittedDate))
@@ -123,7 +168,10 @@ public static class LogisticsValidation
         if(status=="Released" && input.ReleasedDate is null)
             Invalid("clearance_release_date_required");
         return new ValidatedClearance(input.BrokerId,declaration,input.SubmittedDate,
-            input.ReleasedDate,status,notes);
+            input.ReleasedDate,status,notes,currency,input.CustomsValue,
+            input.DutyRatePercent,input.CustomsDutyAmount,input.TaxAmount,
+            input.AdditionalFees,input.BrokerFees,input.InlandTransportFees,
+            input.DemurrageFees,input.DetentionFees,input.DeliveredToWarehouseDate);
     }
 
     // ISO 6346 owner letters and six-digit serial, weighted by 2^index;

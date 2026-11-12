@@ -154,16 +154,20 @@ try{
  await fill(".im-logistics>.im-logistics-form input[dir=auto]","MV Wathiqa QA");
  await evaluate("document.querySelector('.im-logistics>.im-logistics-form').requestSubmit()");
  await poll(()=>evaluate("document.querySelector('.im-logistics-meta')?.innerText.includes('MV Wathiqa QA')"),15000);
- pass("Edit B/L metadata without changing owning Order");
- await click(".im-logistics-subhead .btn");
+  pass("Edit B/L metadata without changing owning Order");
+  await poll(()=>evaluate("document.querySelector('.im-logistics-subhead .btn')?.disabled===false"),12000);
+  await click(".im-logistics-subhead .btn");
  await poll(()=>evaluate("!!document.querySelector('input[placeholder=\"CSQU3054383\"]')"),8000);
  await fill('input[placeholder="CSQU3054383"]',"CSQU3054383");
  await poll(()=>evaluate("document.body.innerText.includes('رقم التحقق صحيح')"),5000);
  pass("ISO 6346 valid number shows positive feedback");
  await evaluate("document.querySelector('.im-logistics-inner-form').requestSubmit()");
  await poll(()=>evaluate("document.body.innerText.includes('CSQU3054383') && document.querySelectorAll('.im-logistics-table tbody tr').length===1"),16000);
- pass("Create Planned container through Arabic UI");
- await click(".im-logistics-edit-btn");
+  pass("Create Planned container through Arabic UI");
+  // Wait for the API write to complete before clicking the edit control:
+  // the row renders optimistically while saving still disables actions.
+  await poll(()=>evaluate("document.querySelector('.im-logistics-edit-btn')?.disabled===false"),12000);
+  await click(".im-logistics-edit-btn");
  await poll(()=>evaluate("!!document.querySelector('input[placeholder=\"CSQU3054383\"]')"),8000);
  await evaluate("(()=>{const e=document.querySelectorAll('.im-logistics-inner-form select')[1];"+
   "if(!e)throw Error('Missing container status select');"+
@@ -181,14 +185,16 @@ try{
   await evaluate("(()=>{const e=document.querySelectorAll('.im-logistics-inner-form select')[1];const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(e,'AtPort');e.dispatchEvent(new Event('change',{bubbles:true}));const d=document.querySelectorAll('.im-logistics-inner-form input[type=date]')[0];const ds=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;ds.call(d,'2026-11-19');d.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
  await evaluate("document.querySelector('.im-logistics-inner-form').requestSubmit()");
  await poll(()=>evaluate("document.querySelector('.im-logistics-table tbody')?.innerText.includes('في الميناء')"),16000);
- pass("Container advances to AtPort with arrival date");
- await click(".im-logistics-edit-btn");
+  pass("Container advances to AtPort with arrival date");
+  await poll(()=>evaluate("document.querySelector('.im-logistics-edit-btn')?.disabled===false"),12000);
+  await click(".im-logistics-edit-btn");
  await poll(()=>evaluate("!!document.querySelector('input[placeholder=\"CSQU3054383\"]')"));
   await evaluate("(()=>{const e=document.querySelectorAll('.im-logistics-inner-form select')[1];const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(e,'Delivered');e.dispatchEvent(new Event('change',{bubbles:true}));const d=document.querySelectorAll('.im-logistics-inner-form input[type=date]')[1];const ds=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;ds.call(d,'2026-11-21');d.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
  await evaluate("document.querySelector('.im-logistics-inner-form').requestSubmit()");
  await poll(()=>evaluate("document.querySelector('.im-logistics-table tbody')?.innerText.includes('مسلّمة') && document.querySelector('.im-logistics-tab')?.innerText.includes('1/1')"),18000);
- pass("Container delivered; B/L rollup displays one of one");
- await evaluate("(()=>{const e=document.querySelectorAll('.im-logistics-customs-head + form select')[1];if(!e)throw Error('Missing customs status field');const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(e,'MissingDocs');e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
+  pass("Container delivered; B/L rollup displays one of one");
+  await poll(()=>evaluate("document.querySelector('.im-logistics-customs-head + form button[type=submit]')?.disabled===false"),12000);
+  await evaluate("(()=>{const e=document.querySelectorAll('.im-logistics-customs-head + form select')[1];if(!e)throw Error('Missing customs status field');const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(e,'MissingDocs');e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
  await evaluate("document.querySelector('.im-logistics-customs-head + form').requestSubmit()");
  await poll(()=>evaluate("document.querySelector('.im-logistics-customs-head')?.innerText.includes('مستندات ناقصة')"),16000);
  pass("Save independent customs status for this B/L");

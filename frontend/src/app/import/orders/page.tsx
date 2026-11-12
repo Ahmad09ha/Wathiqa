@@ -3,7 +3,7 @@
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpLeft, ClipboardList, Filter, Plus, Search, Trash2, Ship, Info, RotateCcw } from "lucide-react";
+import { ArrowUpLeft, ClipboardList, FileText, Filter, Plus, Search, Trash2, Ship, Info, RotateCcw } from "lucide-react";
 import ImportShell from "@/components/ImportShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useToast } from "@/components/ToastProvider";
@@ -124,7 +124,10 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
    <div><small>المشتريات / سجلات التاجر</small><h2>طلبات الشراء</h2>
     <p>بحث متقدم وفلاتر قابلة للمشاركة، مع متابعة الحاويات والتخليص حسب الوقائع المسجلة.</p>
    </div>
-   {canManagePayments&&<Link className="btn primary" href="/import/orders/new"><Plus size={17}/> طلب شراء جديد</Link>}
+    {canManagePayments&&<div className="im-order-create-actions">
+      <Link className="btn btn-outline" href="/import/orders/from-file"><Plus size={17}/> إدخال من ملف</Link>
+      <Link className="btn primary" href="/import/orders/new"><Plus size={17}/> طلب شراء جديد</Link>
+    </div>}
   </div>
   {!canManagePayments&&<div className="im-info-strip im-order-readonly-notice">
     <div><strong>صلاحية الاطلاع فقط</strong>
@@ -245,8 +248,10 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
         </td>
         <td data-label="التخليص"><span className="im-pill">{clearanceNames[order.clearanceStatus]||order.clearanceStatus}</span></td>
         <td data-label="ETA">{order.eta?new Date(order.eta+"T00:00:00").toLocaleDateString("ar-SY-u-nu-latn"):"—"}</td>
-        <td data-label="الإجراءات"><div className="im-table-actions">
-         <Link href={"/import/orders/"+order.id} className="im-order-open" aria-label={"فتح "+order.number}><ArrowUpLeft size={18}/></Link>
+         <td data-label="الإجراءات"><div className="im-table-actions">
+          <Link href={"/import/orders/"+order.id} className="im-order-open" aria-label={"فتح "+order.number}><ArrowUpLeft size={18}/></Link>
+          <Link href={"/import/orders/"+order.id+"?mode=file"} className="im-order-open"
+            aria-label={"فتح "+order.number+" مع المستند"} title="فتح الطلب مع الملف والتبويبات"><FileText size={18}/></Link>
          {canManagePayments&&order.status==="Draft"&&<button type="button" className="im-table-delete"
           aria-label={"حذف "+order.number} title="حذف المسودة" onClick={()=>setDeleting(order)}><Trash2 size={16}/></button>}
         </div></td>

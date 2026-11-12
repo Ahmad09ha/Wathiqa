@@ -5,23 +5,27 @@ namespace Wathiqa.ImportApi;
 public sealed record SaveOrderItemRequest(
     Guid? Id, string? ProductType, string? Denier, string? Luster, string? Grade,
     string? ColorType, decimal Quantity, string? QuantityUnit,
-    decimal UnitPrice, string? PriceUnit, string? HsCode);
+    decimal UnitPrice, string? PriceUnit, string? HsCode, string? Brand = null);
 
 public sealed record SaveOrderRequest(
     Guid SupplierId, Guid? CustomerId, string? SupplierRef,
     DateOnly OrderDate, string? Incoterm, string? LoadingPort,
     string? DischargePort, string? Currency, string? Notes,
-    IReadOnlyList<SaveOrderItemRequest>? Items, int? Revision);
+    IReadOnlyList<SaveOrderItemRequest>? Items, int? Revision,
+    string? ProformaInvoiceNumber = null, string? ContractNumber = null,
+    DateOnly? ContractDate = null, bool MetadataEdited = false);
 
 public sealed record ValidatedOrderItem(
     Guid? Id, string ProductType, string Denier, string Luster, string Grade,
     string ColorType, decimal QuantityKg, decimal UnitPrice,
-    string PriceUnit, decimal LineTotal, string HsCode);
+    string PriceUnit, decimal LineTotal, string HsCode, string? Brand = null);
 
 public sealed record ValidatedOrderDraft(
     string SupplierRef, DateOnly OrderDate, string Incoterm, string LoadingPort,
     string DischargePort, string Currency, string Notes,
-    IReadOnlyList<ValidatedOrderItem> Items, decimal TotalAmount);
+    IReadOnlyList<ValidatedOrderItem> Items, decimal TotalAmount,
+    string ProformaInvoiceNumber = "", string ContractNumber = "",
+    DateOnly? ContractDate = null);
 
 public sealed class OrderValidationException(string code) : Exception(code)
 {
@@ -47,6 +51,10 @@ public static class OrderDraftCalculator
         var currency = (request.Currency ?? "").Trim().ToUpperInvariant();
         if (!Currencies.Contains(currency)) Invalid("unsupported_currency");
         var supplierRef = Clean(request.SupplierRef, 120, "invalid_supplier_ref");
+        var proforma = Clean(request.ProformaInvoiceNumber, 120, "invalid_proforma_number");
+        var contract = Clean(request.ContractNumber, 120, "invalid_contract_number");
+        if (request.ContractDate is { Year: < 2000 or > 2100 })
+            Invalid("invalid_contract_date");
         var loading = Clean(request.LoadingPort, 160, "invalid_loading_port");
         var discharge = Clean(request.DischargePort, 160, "invalid_discharge_port");
         var notes = Clean(request.Notes, 3000, "invalid_notes");
@@ -62,6 +70,7 @@ public static class OrderDraftCalculator
             if (input.Id == Guid.Empty) Invalid("invalid_order_item_id");
             if (input.Id.HasValue && !seenIds.Add(input.Id.Value)) Invalid("duplicate_order_item_id");
             var product = Clean(input.ProductType, 80, "invalid_product_type");
+            var brand = input.Brand is null ? null : Clean(input.Brand, 100, "invalid_brand");
             if (string.IsNullOrWhiteSpace(product)) Invalid("product_type_required");
             var denier = Clean(input.Denier, 80, "invalid_denier");
             var luster = Clean(input.Luster, 80, "invalid_luster");
@@ -97,10 +106,10 @@ public static class OrderDraftCalculator
                 throw new OrderValidationException("order_amount_too_large");
             }
             lines.Add(new ValidatedOrderItem(input.Id, product, denier, luster, grade,
-                color, kg, input.UnitPrice, priceUnit, line, hsCode));
+                color, kg, input.UnitPrice, priceUnit, line, hsCode, brand));
         }
         return new ValidatedOrderDraft(supplierRef, request.OrderDate, term, loading,
-            discharge, currency, notes, lines, total);
+            discharge, currency, notes, lines, total, proforma, contract, request.ContractDate);
     }
 
     private static string Clean(string? input, int length, string error)

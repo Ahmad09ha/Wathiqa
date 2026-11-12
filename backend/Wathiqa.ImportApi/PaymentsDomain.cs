@@ -32,6 +32,7 @@ public sealed class PaymentTransfer
     public DateOnly TransferDate { get; set; }
     public string Method { get; set; } = "BankTransfer";
     public string Reference { get; set; } = "";
+    public string BankOrExchangeName { get; set; } = "";
     public Guid ProofDocumentId { get; set; }
     public StoredDocument ProofDocument { get; set; } = null!;
     public Guid IdempotencyKey { get; set; }

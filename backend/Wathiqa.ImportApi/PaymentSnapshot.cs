@@ -106,7 +106,8 @@ public sealed class PaymentSnapshot
                     Covered=state.Covered,Remaining=state.Uncovered,IsOverdue=state.Overdue};
             }).ToArray(),
             Transfers=Transfers.Select(t=>new{t.Id,t.Amount,t.BeneficiaryCompanyId,
-                t.BeneficiarySnapshot,t.TransferDate,t.Method,t.Reference,t.ProofDocumentId,
+                t.BeneficiarySnapshot,t.TransferDate,t.Method,t.Reference,
+                t.BankOrExchangeName,t.ProofDocumentId,
                 t.State,t.ReplacesTransferId,t.VoidReason,t.VoidedAtUtc,t.CreatedAtUtc,
                 Returned=TransferReturned(t.Id),
                 CommercialApplied=Allocations.Where(x=>x.TransferId==t.Id && x.Kind=="Commercial").Sum(x=>x.Amount),

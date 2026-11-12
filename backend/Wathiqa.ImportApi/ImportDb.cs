@@ -23,6 +23,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
     public DbSet<ImportContainer> Containers => Set<ImportContainer>();
     public DbSet<ImportCustomsClearance> CustomsClearances => Set<ImportCustomsClearance>();
     public DbSet<ImportLogisticsAudit> LogisticsAudits => Set<ImportLogisticsAudit>();
+    public DbSet<ShipmentTrackingReference> TrackingReferences => Set<ShipmentTrackingReference>();
     public DbSet<StoredDocument> StoredDocuments => Set<StoredDocument>();
     public DbSet<StoredDocumentLink> StoredDocumentLinks => Set<StoredDocumentLink>();
     public DbSet<StoredDocumentAudit> StoredDocumentAudits => Set<StoredDocumentAudit>();
@@ -162,6 +163,8 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.Property(x => x.SupplierNameSnapshot).HasMaxLength(180);
             e.Property(x => x.CustomerNameSnapshot).HasMaxLength(180);
             e.Property(x => x.SupplierRef).HasMaxLength(120);
+            e.Property(x => x.ProformaInvoiceNumber).HasMaxLength(120);
+            e.Property(x => x.ContractNumber).HasMaxLength(120);
             e.Property(x => x.Incoterm).HasMaxLength(8);
             e.Property(x => x.LoadingPort).HasMaxLength(160);
             e.Property(x => x.DischargePort).HasMaxLength(160);
@@ -198,6 +201,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             });
             e.HasIndex(x => new { x.TenantId, x.OrderId, x.Position });
             e.Property(x => x.ProductType).HasMaxLength(80);
+            e.Property(x => x.Brand).HasMaxLength(100);
             e.Property(x => x.Denier).HasMaxLength(80);
             e.Property(x => x.Luster).HasMaxLength(80);
             e.Property(x => x.Grade).HasMaxLength(80);
@@ -244,6 +248,9 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.Property(x => x.ShippingLineSnapshot).HasMaxLength(180);
             e.Property(x => x.Vessel).HasMaxLength(140);
             e.Property(x => x.Voyage).HasMaxLength(80);
+            e.Property(x => x.Shipper).HasMaxLength(180);
+            e.Property(x => x.Consignee).HasMaxLength(180);
+            e.Property(x => x.NotifyParty).HasMaxLength(180);
             e.Property(x => x.PortOfLoading).HasMaxLength(160);
             e.Property(x => x.PortOfDischarge).HasMaxLength(160);
             e.Property(x => x.TrackingUrl).HasMaxLength(600);
@@ -257,6 +264,25 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
                 .HasPrincipalKey(x => new { x.TenantId, x.Id })
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasQueryFilter(x => x.TenantId == CurrentTenantId && !x.IsDeleted && !x.Order.IsDeleted);
+        });
+        model.Entity<ShipmentTrackingReference>(e =>
+        {
+            e.ToTable("ShipmentTrackingReferences");
+            e.HasAlternateKey(x => new { x.TenantId, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.ShipmentId, x.ReferenceType, x.ReferenceNumber }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.LastSyncedAtUtc });
+            e.Property(x => x.ReferenceType).HasMaxLength(2);
+            e.Property(x => x.ReferenceNumber).HasMaxLength(90);
+            e.Property(x => x.CarrierCode).HasMaxLength(12);
+            e.Property(x => x.ProviderStatus).HasMaxLength(60);
+            e.Property(x => x.LastErrorCode).HasMaxLength(80);
+            e.Property(x => x.SnapshotJson).HasColumnType("jsonb");
+            e.HasOne(x => x.Shipment).WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.ShipmentId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasQueryFilter(x => x.TenantId == CurrentTenantId &&
+                !x.Shipment.IsDeleted && !x.Shipment.Order.IsDeleted);
         });
         model.Entity<ImportContainer>(e =>
         {
@@ -291,6 +317,16 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.Property(x => x.BrokerSnapshot).HasMaxLength(180);
             e.Property(x => x.Status).HasMaxLength(30);
             e.Property(x => x.Notes).HasMaxLength(3000);
+            e.Property(x => x.ChargesCurrency).HasMaxLength(3);
+            e.Property(x => x.CustomsValue).HasPrecision(18,2);
+            e.Property(x => x.DutyRatePercent).HasPrecision(7,4);
+            e.Property(x => x.CustomsDutyAmount).HasPrecision(18,2);
+            e.Property(x => x.TaxAmount).HasPrecision(18,2);
+            e.Property(x => x.AdditionalFees).HasPrecision(18,2);
+            e.Property(x => x.BrokerFees).HasPrecision(18,2);
+            e.Property(x => x.InlandTransportFees).HasPrecision(18,2);
+            e.Property(x => x.DemurrageFees).HasPrecision(18,2);
+            e.Property(x => x.DetentionFees).HasPrecision(18,2);
             e.Property(x => x.Revision).IsConcurrencyToken();
             e.HasOne(x => x.Shipment).WithOne(x => x.Clearance)
                 .HasForeignKey<ImportCustomsClearance>(x => new { x.TenantId, x.ShipmentId })
@@ -434,6 +470,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.Property(x=>x.State).HasMaxLength(15);
             e.Property(x=>x.Method).HasMaxLength(30);
             e.Property(x=>x.Reference).HasMaxLength(160);
+            e.Property(x=>x.BankOrExchangeName).HasMaxLength(180);
             e.Property(x=>x.BeneficiarySnapshot).HasMaxLength(180);
             e.Property(x=>x.VoidReason).HasMaxLength(1000);
             e.Property(x=>x.RequestHash).HasMaxLength(64);
