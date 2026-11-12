@@ -63,6 +63,21 @@ public sealed class TenantCompany
     public bool IsDeleted { get; set; }
 }
 
+// New company mutations are appended to this tenant-scoped audit ledger.
+// We intentionally store only the party display name and category: private
+// contact/banking/tax details must not be duplicated into the activity feed.
+public sealed class TenantCompanyAudit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid ActorId { get; set; }
+    public string Action { get; set; } = "";
+    public string NameSnapshot { get; set; } = "";
+    public string TypeSnapshot { get; set; } = "";
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+}
+
 public sealed class SecurityAudit
 {
     public Guid Id { get; set; } = Guid.NewGuid();

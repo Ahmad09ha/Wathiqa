@@ -64,6 +64,7 @@ DELETE FROM "OrderItems" WHERE "TenantId"='__TENANT__'::uuid;
 DELETE FROM "OrderAudits" WHERE "TenantId"='__TENANT__'::uuid;
 DELETE FROM "Orders" WHERE "TenantId"='__TENANT__'::uuid;
 DELETE FROM "OrderNumberSequences" WHERE "TenantId"='__TENANT__'::uuid;
+DELETE FROM "CompanyAudits" WHERE "TenantId"='__TENANT__'::uuid;
 DELETE FROM "Companies" WHERE "TenantId"='__TENANT__'::uuid;
 '@
 $sql=$sql.Replace('__DELETIONS__',$(if($Apply){$del}else{''}))

@@ -2029,6 +2029,48 @@ namespace Wathiqa.ImportApi.Migrations
                     b.ToTable("Companies");
                 });
 
+            modelBuilder.Entity("Wathiqa.ImportApi.TenantCompanyAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TypeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId", "Action");
+
+                    b.HasIndex("TenantId", "OccurredAtUtc", "Id");
+
+                    b.ToTable("CompanyAudits", (string)null);
+                });
+
             modelBuilder.Entity("Wathiqa.ImportApi.TenantInvitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2574,6 +2616,15 @@ namespace Wathiqa.ImportApi.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Wathiqa.ImportApi.TenantCompanyAudit", b =>
+                {
+                    b.HasOne("Wathiqa.ImportApi.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Wathiqa.ImportApi.TenantInvitation", b =>

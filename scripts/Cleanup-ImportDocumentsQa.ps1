@@ -111,6 +111,9 @@ DELETE FROM "Shipments" WHERE "Id" IN(SELECT "Id" FROM qa_shipments);
 DELETE FROM "OrderAudits" WHERE "OrderId" IN(SELECT "Id" FROM qa_orders);
 DELETE FROM "OrderItems" WHERE "OrderId" IN(SELECT "Id" FROM qa_orders);
 DELETE FROM "Orders" WHERE "Id" IN(SELECT "Id" FROM qa_orders);
+DELETE FROM "CompanyAudits" WHERE "CompanyId" IN(
+ SELECT c."Id" FROM "Companies" c WHERE c."Name" LIKE '__TAG__%'
+ AND c."TenantId" IN(SELECT t."Id" FROM "Tenants" t WHERE t."Slug" IN('demo-a','demo-b')));
 DELETE FROM "Companies" WHERE "Name" LIKE '__TAG__%' AND
  "TenantId" IN(SELECT "Id" FROM "Tenants" WHERE "Slug" IN('demo-a','demo-b'));
 '@

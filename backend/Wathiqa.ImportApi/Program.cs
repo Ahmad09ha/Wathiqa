@@ -342,6 +342,7 @@ LogisticsApi.Map(app);
 TrackingApi.Map(app);
 DocumentsApi.Map(app);
 OperationsApi.Map(app);
+DashboardApi.Map(app);
 
 app.MapGet("/", () => Results.Redirect("/api/health")).AllowAnonymous();
 await app.RunAsync();

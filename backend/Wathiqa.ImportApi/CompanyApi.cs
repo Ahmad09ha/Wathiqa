@@ -69,12 +69,14 @@ public static class CompanyApi
             var company = new TenantCompany { TenantId = tenantId };
             Apply(company, normalized!);
             db.Companies.Add(company);
+            db.CompanyAudits.Add(Audit(company, CurrentTenant.UserId(principal), "Created"));
             await db.SaveChangesAsync();
             return Results.Created($"/api/companies/{company.Id}",
                 Detail(company));
         });
 
-        group.MapPut("/{id:guid}", async (Guid id, SaveCompanyRequest body, ImportDb db) =>
+        group.MapPut("/{id:guid}", async (Guid id, SaveCompanyRequest body, ImportDb db,
+            System.Security.Claims.ClaimsPrincipal principal) =>
         {
             if (!TryNormalize(body, out var normalized))
                 return Results.BadRequest(new { error = "invalid_company_details" });
@@ -83,11 +85,13 @@ public static class CompanyApi
             if (company.Type != normalized!.Type && await HasActiveReferences(db, id))
                 return Results.Conflict(new { error = "company_in_use" });
             Apply(company, normalized!);
+            db.CompanyAudits.Add(Audit(company, CurrentTenant.UserId(principal), "Updated"));
             await db.SaveChangesAsync();
             return Results.Ok(Detail(company));
         });
 
-        group.MapDelete("/{id:guid}", async (Guid id, ImportDb db) =>
+        group.MapDelete("/{id:guid}", async (Guid id, ImportDb db,
+            System.Security.Claims.ClaimsPrincipal principal) =>
         {
             var company = await db.Companies.SingleOrDefaultAsync(x => x.Id == id);
             if (company is null) return Results.NotFound();
@@ -96,10 +100,19 @@ public static class CompanyApi
             if (await HasActiveReferences(db, id))
                 return Results.Conflict(new { error = "company_in_use" });
             company.IsDeleted = true;
+            db.CompanyAudits.Add(Audit(company, CurrentTenant.UserId(principal), "Deleted"));
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
     }
+
+    private static TenantCompanyAudit Audit(TenantCompany company, Guid actorId,
+        string action) => new()
+    {
+        TenantId = company.TenantId, CompanyId = company.Id,
+        ActorId = actorId, Action = action,
+        NameSnapshot = company.Name, TypeSnapshot = company.Type
+    };
 
     private static async Task<bool> HasActiveReferences(ImportDb db, Guid companyId) =>
         await db.Orders.AnyAsync(o => o.SupplierId == companyId || o.CustomerId == companyId) ||

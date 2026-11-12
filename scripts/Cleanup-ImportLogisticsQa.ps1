@@ -47,9 +47,10 @@ DELETE FROM "CustomsClearances" WHERE "ShipmentId" IN (SELECT "Id" FROM qa_shipm
 DELETE FROM "Containers" WHERE "ShipmentId" IN (SELECT "Id" FROM qa_shipments);
 DELETE FROM "Shipments" WHERE "Id" IN (SELECT "Id" FROM qa_shipments);
 DELETE FROM "OrderAudits" WHERE "OrderId" IN (SELECT "Id" FROM qa_orders);
-DELETE FROM "OrderItems" WHERE "OrderId" IN (SELECT "Id" FROM qa_orders);
-DELETE FROM "Orders" WHERE "Id" IN (SELECT "Id" FROM qa_orders);
-DELETE FROM "Companies" WHERE "Id" IN (SELECT "Id" FROM qa_companies);
+ DELETE FROM "OrderItems" WHERE "OrderId" IN (SELECT "Id" FROM qa_orders);
+ DELETE FROM "Orders" WHERE "Id" IN (SELECT "Id" FROM qa_orders);
+ DELETE FROM "CompanyAudits" WHERE "CompanyId" IN (SELECT "Id" FROM qa_companies);
+ DELETE FROM "Companies" WHERE "Id" IN (SELECT "Id" FROM qa_companies);
 '@
     $sql=$sql.Replace('__RUN__',$tag).Replace('__DELETE__',$(if($Apply){$deletion}else{''}))
     [IO.File]::WriteAllText($sqlFile,$sql,[Text.Encoding]::ASCII)

@@ -14,6 +14,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantInvitation> TenantInvitations => Set<TenantInvitation>();
     public DbSet<TenantCompany> Companies => Set<TenantCompany>();
+    public DbSet<TenantCompanyAudit> CompanyAudits => Set<TenantCompanyAudit>();
     public DbSet<SecurityAudit> SecurityAudits => Set<SecurityAudit>();
     public DbSet<PurchaseOrder> Orders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderItem> OrderItems => Set<PurchaseOrderItem>();
@@ -142,6 +143,18 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasQueryFilter(x => x.TenantId == CurrentTenantId && !x.IsDeleted);
+        });
+        model.Entity<TenantCompanyAudit>(e =>
+        {
+            e.ToTable("CompanyAudits");
+            e.HasIndex(x => new { x.TenantId, x.OccurredAtUtc, x.Id });
+            e.HasIndex(x => new { x.TenantId, x.CompanyId, x.Action });
+            e.Property(x => x.Action).HasMaxLength(24);
+            e.Property(x => x.NameSnapshot).HasMaxLength(180);
+            e.Property(x => x.TypeSnapshot).HasMaxLength(30);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(x => x.TenantId == CurrentTenantId);
         });
         model.Entity<TenantInvitation>(e =>
         {
