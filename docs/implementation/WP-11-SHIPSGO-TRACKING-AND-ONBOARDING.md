@@ -8,6 +8,7 @@ Verified locally 2026-11-12. This document supersedes the old SeaRates provider 
 - Set ASP.NET Core server-only environment variable OceanTracking__ShipsGoApiKey in the deployment secret manager. Remove the old SeaRates key. Do not expose API credentials in frontend URLs or logs.
 - In Development only, OceanTracking__ShipsGoTestBaseUrl can target a loopback HTTP mock. In production, the configured host remains fixed to ShipsGo.
 - Provider responses are bounded to 4MB, parsed defensively, and given a 25s HTTP timeout. Provider availability does not change official order, customs or payment records.
+- Provider HTTP requests explicitly require Accept: application/json; automatic redirects are disabled so a ShipsGo GET request containing a provider API key cannot silently forward that credential to another host.
 
 ## Per-subscription B/L quota
 - Each newly created PlatformSubscriptionPlan has immutable MaxTrackedBills in range 0..100000. Zero disables direct tracking. Existing plans migrated with zero; create and explicitly assign a new tracking-enabled plan to opt in.

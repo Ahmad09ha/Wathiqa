@@ -12,6 +12,9 @@ const server=http.createServer(async (req,res)=>{
     res.end(JSON.stringify({posts,gets,registrations}));return;
   }
   if(req.method==="POST" && path==="/api/v1.2/ContainerService/PostContainerInfoWithBl"){
+    if(!(req.headers.accept||"").includes("application/json")){
+      res.writeHead(406).end(JSON.stringify({error:"JSON accept required"}));return;
+    }
     let body="";for await(const data of req){body+=data;if(body.length>8192){res.writeHead(413).end();return;}}
     const form=new URLSearchParams(body);
     if(form.get("authCode")!=="qa-shipsgo-only"||
@@ -24,6 +27,9 @@ const server=http.createServer(async (req,res)=>{
     return;
   }
   if(req.method==="GET"&&path==="/api/v1.2/ContainerService/GetContainerInfo/"){
+    if(!(req.headers.accept||"").includes("application/json")){
+      res.writeHead(406).end(JSON.stringify({error:"JSON accept required"}));return;
+    }
     const url=new URL(req.url,"http://127.0.0.1");
     if(url.searchParams.get("authCode")!=="qa-shipsgo-only"){
       res.writeHead(403).end(JSON.stringify({error:"unauthorized"}));return;

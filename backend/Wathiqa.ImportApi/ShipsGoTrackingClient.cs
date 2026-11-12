@@ -20,7 +20,10 @@ public sealed class TrackingProviderException(string code, bool definitive = fal
 /// </summary>
 public sealed class ShipsGoTrackingClient(IConfiguration configuration, IHostEnvironment environment)
 {
-    private static readonly HttpClient Client = new()
+    // ShipsGo credentials are transmitted as a GET query parameter. Never
+    // follow a provider redirect that could forward that secret elsewhere.
+    private static readonly HttpClient Client = new(
+        new HttpClientHandler { AllowAutoRedirect = false })
     {
         Timeout = TimeSpan.FromSeconds(25)
     };
@@ -55,6 +58,7 @@ public sealed class ShipsGoTrackingClient(IConfiguration configuration, IHostEnv
         using var body = new FormUrlEncodedContent(form);
         using var message = new HttpRequestMessage(HttpMethod.Post,
             Root + "PostContainerInfoWithBl") { Content = body };
+        message.Headers.Accept.ParseAdd("application/json");
         using var response = await Send(message, cancellationToken);
         var json = await ReadJson(response, cancellationToken);
 
@@ -89,6 +93,7 @@ public sealed class ShipsGoTrackingClient(IConfiguration configuration, IHostEnv
                   "&requestId=" + id.ToString(CultureInfo.InvariantCulture) +
                   "&mapPoint=true";
         using var message = new HttpRequestMessage(HttpMethod.Get, url);
+        message.Headers.Accept.ParseAdd("application/json");
         using var response = await Send(message, cancellationToken);
         var root = await ReadJson(response, cancellationToken);
         if (root.ValueKind == JsonValueKind.Array)
