@@ -13,6 +13,7 @@ function PlansManagement(){
   const [open,setOpen]=useState(false);
   const [name,setName]=useState("");const [code,setCode]=useState("");
   const [months,setMonths]=useState("3");const [reason,setReason]=useState("");
+  const [trackedBills,setTrackedBills]=useState("0");
   const [switchPlan,setSwitchPlan]=useState<ManualPlan|null>(null);
   const [switchReason,setSwitchReason]=useState("");
   const load=useCallback(async()=>{
@@ -24,8 +25,9 @@ function PlansManagement(){
     e.preventDefault();if(busy)return;setBusy(true);
     try{await platformApi("/plans",{method:"POST",body:JSON.stringify({
       code:code.trim().toLowerCase(),name:name.trim(),
-      durationMonths:months==="unlimited"?null:Number(months),reason:reason.trim()})});
-      setName("");setCode("");setMonths("3");setReason("");setOpen(false);
+      durationMonths:months==="unlimited"?null:Number(months),
+      maxTrackedBills:Number(trackedBills),reason:reason.trim()})});
+      setName("");setCode("");setMonths("3");setTrackedBills("0");setReason("");setOpen(false);
       await load();notify({kind:"success",title:"تم إنشاء الباقة",description:"مدتها ثابتة ولا تحتوي على سعر أو دفع."});
     }catch(error){notify({kind:"error",title:"تعذّر إضافة الباقة",description:(error as Error).message});}
     finally{setBusy(false);}
@@ -43,7 +45,7 @@ function PlansManagement(){
   return <>
     <section className="pc-panel"><div className="pc-panel-heading"><div>
       <h3><Tags size={19}/> باقات المنصة</h3>
-      <p>الباقة اسم ومدة اشتراك فقط؛ ما في تسعير ولا فواتير ولا أي تكامل دفع.</p>
+       <p>حدّد مدة الباقة وعدد البوالص التي يسمح للتاجر بتفعيل تتبّعها. لا يوجد دفع إلكتروني.</p>
     </div><button className="pc-primary" type="button" onClick={()=>setOpen(v=>!v)}>
       <Plus size={16}/> إضافة باقة</button></div>
       {open&&<form className="pc-form-grid pc-plan-new" onSubmit={e=>void create(e)}>
@@ -58,16 +60,22 @@ function PlansManagement(){
           <option value="24">سنتان</option><option value="36">3 سنوات</option>
           <option value="unlimited">بلا انتهاء</option>
         </select></label>
+        <label>عدد بوالص الشحن المسموح تتبّعها خلال الاشتراك
+          <input type="number" required min={0} max={100000} step={1}
+            value={trackedBills} onChange={e=>setTrackedBills(e.target.value)}/>
+          <small>الصفر = التتبع المباشر غير متاح. التجديد يبدأ رصيداً جديداً.</small>
+        </label>
         <label className="pc-field-wide">سبب إضافة الباقة<textarea required minLength={8}
           maxLength={1000} rows={2} value={reason} onChange={e=>setReason(e.target.value)}/></label>
         <div className="pc-form-actions"><button className="pc-primary" type="submit" disabled={busy}>حفظ الباقة</button>
           <button className="pc-secondary" type="button" onClick={()=>setOpen(false)}>إلغاء</button></div>
       </form>}
       <div className="pc-table-wrap"><table className="pc-table"><thead><tr>
-        <th>الباقة</th><th>المدة</th><th>الاشتراكات الحالية</th><th>الحالة</th><th></th>
+         <th>الباقة</th><th>المدة</th><th>حدّ البوالص</th><th>الاشتراكات الحالية</th><th>الحالة</th><th></th>
       </tr></thead><tbody>{plans.map(plan=><tr key={plan.id}>
         <td><strong dir="auto">{plan.name}</strong><small dir="ltr">{plan.code}</small></td>
-        <td>{plan.durationMonths===null?"بلا انتهاء":plan.durationMonths+" شهر"}</td>
+         <td>{plan.durationMonths===null?"بلا انتهاء":plan.durationMonths+" شهر"}</td>
+         <td>{plan.maxTrackedBills}</td>
         <td>{plan.tenantCount}</td>
         <td><span className={"pc-status "+(plan.isActive?"active":"paused")}>{plan.isActive?"متاحة":"موقوفة"}</span></td>
         <td><button className="pc-text-action" type="button" disabled={busy}

@@ -81,6 +81,10 @@ try{
   await poll(()=>js("location.pathname==='/platform/tenants' && document.querySelector('.pc-search-box')!==null"));
   assert(await js("document.body.innerText.includes('إضافة تاجر') && document.body.innerText.includes('حق الوصول')"));
   pass("Tenant directory and onboarding controls visible to SuperAdmin");
+  await js("Array.from(document.querySelectorAll('button')).find(x=>x.innerText.includes('إضافة تاجر')).click()");
+  await poll(()=>js("!!document.querySelector('input[type=\"password\"][autocomplete=\"new-password\"]')"));
+  assert(await js("document.body.innerText.includes('كلمة مرور المدير')"));
+  pass("SuperAdmin merchant creation includes strong password field instead of requiring an invitation");
   await js("document.querySelector('a.pc-nav-link[href=\"/platform/users\"]').click()");
   await poll(()=>js("location.pathname==='/platform/users' && document.querySelector('.pc-table')!==null"));
   assert(await js("document.body.innerText.includes('دليل المستخدمين')"));
@@ -94,6 +98,10 @@ try{
   await poll(()=>js("document.querySelector('table.pc-table')!==null && (document.querySelector('table.pc-table tbody tr')!==null || document.body.innerText.includes('لا يوجد باقات'))"));
   assert(await js("document.body.innerText.includes('مدة') && document.body.innerText.includes('إضافة باقة')"));
   pass("Price-free manual plan catalogue renders and offers controlled plan creation");
+  await js("Array.from(document.querySelectorAll('button')).find(x=>x.innerText.includes('إضافة باقة')).click()");
+  await poll(()=>js("!!document.querySelector('input[type=\"number\"][min=\"0\"][max=\"100000\"]')"));
+  assert(await js("document.body.innerText.includes('عدد بوالص الشحن المسموح تتبّعها')"));
+  pass("SuperAdmin can set an explicit B/L tracking quota for newly created subscription plans");
   const noPaymentInputs=await js("Array.from(document.querySelectorAll('input,select')).every(x=>!/(price|amount|payment|invoice|currency|cost)/i.test((x.name||'')+' '+(x.id||'')))");
   assert(noPaymentInputs);pass("Subscription plan console has no monetary entry controls");
   await shot("wathiqa-platform-manual-plans.png");

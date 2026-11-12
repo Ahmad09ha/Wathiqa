@@ -16,8 +16,9 @@ function TenantDirectory(){
   const [createOpen,setCreateOpen]=useState(false);
   const [name,setName]=useState("");const [slug,setSlug]=useState("");
   const [email,setEmail]=useState("");const [mode,setMode]=useState<AccessMode>("Expires");
+  const [password,setPassword]=useState("");
   const [expiry,setExpiry]=useState("");const [reason,setReason]=useState("");
-  const [created,setCreated]=useState<TenantCreation|null>(null);
+  const [created,setCreated]=useState<(TenantCreation&{initialPassword:string})|null>(null);
   const load=useCallback(async()=>{
     setLoading(true);
     try{const params=new URLSearchParams({page:String(page),pageSize:"20"});
@@ -31,10 +32,12 @@ function TenantDirectory(){
     try{
       const row=await platformApi<TenantCreation>("/tenants",{method:"POST",
         body:JSON.stringify({name:name.trim(),slug:slug.trim().toLowerCase(),adminEmail:email.trim(),
+          adminPassword:password,
           accessMode:mode,accessExpiresAtUtc:mode==="Unlimited"?null:expiry?expiry+"T23:59:59Z":null,
           reason:reason.trim()})});
-      setCreated(row);setCreateOpen(false);setName("");setSlug("");setEmail("");setReason("");
-      await load();notify({kind:"success",title:"تم إنشاء مساحة التاجر",description:"رمز دعوة المدير يظهر مرة واحدة فقط، احفظه الآن."});
+      setCreated({...row,initialPassword:password});setCreateOpen(false);
+      setName("");setSlug("");setEmail("");setPassword("");setReason("");
+      await load();notify({kind:"success",title:"تم إنشاء حساب المدير مباشرة",description:"شارك البريد وكلمة المرور المؤقتة عبر قناة آمنة."});
     }catch(error){notify({kind:"error",title:"تعذّر إنشاء التاجر",description:(error as Error).message});}
     finally{setBusy(false);}
   }
@@ -52,7 +55,7 @@ function TenantDirectory(){
     </form></div>
     {createOpen&&<section className="pc-panel pc-form-panel">
       <div className="pc-panel-heading"><div><h3>إضافة شركة جديدة</h3>
-        <p>سيُنشأ Tenant مستقل مع دعوة لمرة واحدة لأول Admin، وليس حساباً بكلمة مرور تُعرض للمنصة.</p></div></div>
+        <p>يُنشأ حساب مدير الشركة مباشرة بكلمة مرور تختارها. لا تُحفظ كلمة المرور كنص مكشوف.</p></div></div>
       <form onSubmit={e=>void create(e)} className="pc-form-grid">
         <label>اسم الشركة<input required maxLength={180} minLength={2} value={name}
           onChange={e=>setName(e.target.value)} placeholder="مثلاً: شركة التوريدات"/></label>
@@ -61,6 +64,10 @@ function TenantDirectory(){
           onChange={e=>setSlug(e.target.value.toLowerCase())} placeholder="merchant-company"/></label>
         <label>بريد مدير الشركة<input required dir="ltr" type="email" value={email} maxLength={254}
           onChange={e=>setEmail(e.target.value)} placeholder="admin@company.com"/></label>
+        <label>كلمة مرور المدير<input required type="password" dir="ltr" minLength={12} maxLength={256}
+          autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}
+          placeholder="12+ characters, Aa 9 !"/></label>
+        <p className="pc-field-wide pc-muted">12 محرفاً على الأقل، مع حرف كبير وحرف صغير ورقم ورمز خاص. سيتم إظهارها مرة واحدة بعد الإنشاء لتسليمها للتاجر بأمان.</p>
         <label>نوع حق الوصول<select value={mode} onChange={e=>setMode(e.target.value as AccessMode)}>
           <option value="Expires">محدد بتاريخ انتهاء</option><option value="Unlimited">بلا انتهاء</option>
         </select></label>
@@ -70,19 +77,21 @@ function TenantDirectory(){
           rows={2} value={reason} onChange={e=>setReason(e.target.value)}
           placeholder="مثلاً: تفعيل حساب جديد بناءً على اتفاق مباشر"/></label>
         <div className="pc-form-actions"><button className="pc-primary" disabled={busy} type="submit">
-          {busy?"جارٍ إنشاء المساحة...":"إنشاء التاجر ودعوة المدير"}</button>
+          {busy?"جارٍ إنشاء المساحة...":"إنشاء التاجر وحساب المدير"}</button>
           <button type="button" className="pc-secondary" onClick={()=>setCreateOpen(false)}>إلغاء</button></div>
       </form>
     </section>}
     {created&&<section className="pc-one-time"><Check size={23}/><div><strong>تم إنشاء {created.name}</strong>
-      <p>هذا رمز دعوة Admin، صالح لمدة 48 ساعة ويظهر لمرة واحدة. شاركه مع مدير الشركة عبر قناة آمنة.</p>
-      <code dir="ltr">{created.invitationToken}</code>
+      <p>حساب مدير التاجر جاهز لتسجيل الدخول مباشرة. شارك بيانات الدخول عبر قناة آمنة، واطلب تغيير كلمة المرور بعد أول دخول.</p>
+      <code dir="ltr">{created.adminEmail}</code>
+      <code dir="ltr">{created.initialPassword}</code>
       <div className="pc-one-time-actions"><button type="button" className="pc-secondary"
-        onClick={()=>void navigator.clipboard.writeText(created.invitationToken).then(()=>
-          notify({kind:"success",title:"تم نسخ رمز الدعوة"})).catch(()=>
-          notify({kind:"error",title:"تعذر النسخ"}))}>
-        <ClipboardCopy size={15}/> نسخ رمز الدعوة</button>
-        <Link className="pc-link" href="/import/join">صفحة قبول الدعوة <ArrowUpLeft size={14}/></Link>
+        onClick={()=>void navigator.clipboard.writeText(created.adminEmail+"\n"+created.initialPassword).then(()=>
+          notify({kind:"success",title:"تم نسخ بيانات الدخول"})).catch(()=>
+           notify({kind:"error",title:"تعذر النسخ"}))}>
+        <ClipboardCopy size={15}/> نسخ بيانات الحساب</button>
+        <button type="button" className="pc-secondary" onClick={()=>setCreated(null)}>إخفاء كلمة المرور</button>
+        <Link className="pc-link" href="/import/login">صفحة تسجيل الدخول <ArrowUpLeft size={14}/></Link>
       </div></div></section>}
     <section className="pc-panel"><div className="pc-panel-heading"><div>
       <h3>دليل الشركات</h3><p>تاريخ الوصول وحالة التعليق منفصلان عن فواتير اشتراكات المنصة.</p></div>

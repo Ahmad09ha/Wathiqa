@@ -29,17 +29,19 @@ export interface PlatformPage<T> {
 }
 export interface TenantCreation {
   id: string; name: string; slug: string; platformRevision: number;
-  invitationToken: string; invitationExpiresAtUtc: string;
+  accountReady:boolean;adminUserId:string|null;adminEmail:string;
+  invitationToken:string|null;invitationExpiresAtUtc:string|null;
 }
 export type AccessMode = "Unlimited" | "Expires";
 
 export interface ManualPlan {
   id:string;code:string;name:string;durationMonths:number|null;
-  isActive:boolean;createdAtUtc:string;tenantCount:number;
+  maxTrackedBills:number;isActive:boolean;createdAtUtc:string;tenantCount:number;
 }
 export interface CurrentManualSubscription {
   id:string;planId:string;planName:string;planCode:string;
-  durationMonths:number|null;startedAtUtc:string;expiresAtUtc:string|null;
+  durationMonths:number|null;maxTrackedBills:number;
+  startedAtUtc:string;expiresAtUtc:string|null;
   endedAtUtc:string|null;lastChangedAtUtc:string;
 }
 export interface TenantManualSubscription {
@@ -52,6 +54,7 @@ export interface ManualSubscriptionDirectoryItem {
   platformRevision:number;accessExpiresAtUtc:string|null;
   hasSubscription:boolean;planId:string|null;planName:string|null;
   planCode:string|null;durationMonths:number|null;
+  maxTrackedBills:number|null;
   startedAtUtc:string|null;endedAtUtc:string|null;lastChangedAtUtc:string|null;
 }
 export const getManualPlans = () => platformApi<ManualPlan[]>("/plans");

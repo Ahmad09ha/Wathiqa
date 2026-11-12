@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, KeyRound, UserRoundPlus } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { useToast } from "@/components/ToastProvider";
-import { importApi } from "@/lib/importApi";
+import { importApi, ImportApiError, resetImportCsrf } from "@/lib/importApi";
 
 export default function JoinWathiqa() {
   const {notify} = useToast();
@@ -19,16 +19,43 @@ export default function JoinWathiqa() {
   async function accept(event:FormEvent){
     event.preventDefault();
     if(pending)return;
+    const cleanToken=token.replace(/[\s\u200B-\u200D\uFEFF]/gu,"");
+    if(!cleanToken){
+      notify({kind:"error",title:"أدخل رمز الدعوة أولاً"});
+      return;
+    }
     if(password!==confirm){
       notify({kind:"error",title:"كلمتا المرور غير متطابقتين"});
       return;
     }
+    const missing=[
+      password.length<12&&"12 محرفاً على الأقل",
+      !/\p{Lu}/u.test(password)&&"حرفاً كبيراً",
+      !/\p{Ll}/u.test(password)&&"حرفاً صغيراً",
+      !/\p{Nd}/u.test(password)&&"رقماً",
+      !/[^\p{L}\p{N}]/u.test(password)&&"رمزاً خاصاً مثل ! أو @"
+    ].filter(Boolean);
+    if(missing.length){
+      notify({kind:"error",title:"كلمة المرور لا تحقق الشروط",
+        description:"يلزم أن تحتوي على: "+missing.join("، ")+"."});
+      return;
+    }
     setPending(true);
     try {
-      await importApi("/api/auth/invitations/accept",{
+      const submit = () => importApi("/api/auth/invitations/accept", {
         method:"POST",
-        body:JSON.stringify({token:token.trim(),displayName:name.trim(),password})
+        body:JSON.stringify({token:cleanToken,displayName:name.trim(),password})
       });
+      try {
+        await submit();
+      } catch(error) {
+        // The server validates CSRF before touching the one-time invitation.
+        // A stale browser antiforgery token may therefore be safely retried once.
+        if (!(error instanceof ImportApiError) || error.code !== "csrf_invalid")
+          throw error;
+        resetImportCsrf();
+        await submit();
+      }
       setToken("");setPassword("");setConfirm("");
       notify({kind:"success",title:"تم تفعيل حسابك",description:"يمكنك تسجيل الدخول ببريدك وكلمة المرور التي اخترتها."});
       router.replace("/import/login");
@@ -45,7 +72,7 @@ export default function JoinWathiqa() {
       <form className="im-login-card" onSubmit={event=>void accept(event)}>
         <span className="im-login-card-icon"><UserRoundPlus size={24}/></span>
         <h2>قبول دعوة الانضمام</h2>
-        <p>هذه الصفحة للموظفين الذين حصلوا على رمز دعوة من مدير شركتهم.</p>
+        <p>هذه الصفحة للموظفين الذين حصلوا على رمز دعوة من مدير شركتهم. رمز الدعوة صالح لمدة 48 ساعة ولمرة واحدة، وهو مختلف عن كلمة المرور الجديدة.</p>
         <label htmlFor="invite-token">رمز الدعوة</label>
         <input id="invite-token" dir="ltr" required autoComplete="off" maxLength={256}
           value={token} onChange={e=>setToken(e.target.value)} placeholder="الصق رمز الدعوة هنا"/>

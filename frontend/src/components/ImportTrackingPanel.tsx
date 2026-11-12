@@ -25,7 +25,8 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
   const [shipmentId,setShipmentId]=useState("");
   const [references,setReferences]=useState<TrackingReference[]>([]);
   const [configured,setConfigured]=useState(false);
-  const [type,setType]=useState<"CT"|"BL">("CT");
+  const [quota,setQuota]=useState({limit:0,used:0,remaining:0});
+  const [type,setType]=useState<"CT"|"BL">("BL");
   const [number,setNumber]=useState("");
   const [carrier,setCarrier]=useState("");
   const [busy,setBusy]=useState(false);
@@ -45,6 +46,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
     try{
       const result=await listTracking(shipmentId);
       setConfigured(result.configured);
+      setQuota(result.quota);
       setReferences(result.records);
       setSelectedId(prev=>result.records.some(r=>r.id===prev)?prev:result.records[0]?.id||"");
     }catch(e){notify({kind:"error",title:"تعذّر تحميل التتبع",description:(e as Error).message});}
@@ -93,7 +95,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
     <div className="im-logistics-heading">
       <div><span className="im-eyebrow">تتبع بحري / بيانات شركة الشحن</span>
         <h2><Ship size={21}/> تتبع الشحنة</h2>
-        <p>أدخل رقم الحاوية أو البوليصة وشركة الشحن. البيانات المعروضة تأتي من المزوّد عند توفرها وتُحفظ داخل حساب شركتك.</p>
+        <p>التتبع المباشر عبر ShipsGo. تُحسب كل بوليصة مفعّلة مرة واحدة ضمن باقتك، حتى لو تحتوي على عدة حاويات.</p>
       </div>
       <button type="button" className="btn btn-outline" onClick={()=>void loadTracking()} disabled={busy}>
         <RefreshCw size={16}/> إعادة تحميل المحفوظ</button>
@@ -106,6 +108,10 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
             <select value={shipmentId} onChange={e=>{setShipmentId(e.target.value);setSelectedId("");}}>
               {shipments.map(s=><option value={s.id} key={s.id}>{s.blNumber}</option>)}
             </select></label>
+          <div className="im-info-strip"><ShipWheel size={18}/><p>
+            رصيد تتبّع البوالص الحالي: <strong>{quota.used} / {quota.limit}</strong>
+            {" · "}المتبقي: <strong>{quota.remaining}</strong>.
+            التسجيل مجاني؛ يُحسب الرصيد عند تفعيل التتبّع المباشر لأول مرة.</p></div>
           <form onSubmit={e=>void add(e)} className="im-track-register">
             <label>البحث باستخدام
               <select value={type} onChange={e=>{const v=e.target.value as "CT"|"BL";setType(v);setNumber(v==="BL"?(shipment?.blNumber||""):"");}}>
@@ -122,8 +128,8 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                 <option value="">اختر من حاويات البوليصة</option>
                 {shipment.containers.map(c=><option key={c.id} value={c.number}>{c.number}</option>)}
               </select></label>}
-            <label>رمز شركة الشحن <small>اختياري عندما يسمح المزوّد بالاكتشاف</small>
-              <input dir="ltr" maxLength={12} placeholder="MSC" value={carrier}
+            <label>شركة الشحن في ShipsGo <small>الاسم المطابق لقائمة ShipsGo، أو اتركه فارغاً لاستخدام OTHERS</small>
+              <input dir="ltr" maxLength={80} placeholder="MSC" value={carrier}
                 onChange={e=>setCarrier(e.target.value)}/></label>
             <button type="submit" className="btn primary" disabled={busy||disabled||!number.trim()}>
               حفظ رقم التتبع</button>

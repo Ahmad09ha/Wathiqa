@@ -46,6 +46,8 @@ public sealed class PlatformSubscriptionPlan
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public int? DurationMonths { get; set; }
+    // Maximum distinct B/Ls activated per assigned/renewed subscription cycle.
+    public int MaxTrackedBills { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
@@ -66,4 +68,21 @@ public sealed class TenantSubscription
     public DateTime? ExpiresAtUtc { get; set; }
     public DateTime? EndedAtUtc { get; set; }
     public DateTime LastChangedAtUtc { get; set; } = DateTime.UtcNow;
+    public Guid TrackingCycleId { get; set; } = Guid.NewGuid();
+}
+
+/// <summary>
+/// Durable per-B/L tracking activation ledger. Rows are never deleted on
+/// failures with an ambiguous provider outcome, preventing paid POST replays.
+/// </summary>
+public sealed class SubscriptionTrackingUsage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid TrackingCycleId { get; set; }
+    public Guid ShipmentId { get; set; }
+    public string BlNumber { get; set; } = "";
+    public string ProviderRequestId { get; set; } = "";
+    public string State { get; set; } = "Reserved";
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }

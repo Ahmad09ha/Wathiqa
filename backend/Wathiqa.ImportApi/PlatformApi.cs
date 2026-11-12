@@ -14,7 +14,8 @@ namespace Wathiqa.ImportApi;
 
 public sealed record PlatformLoginInput(string? Email, string? Password);
 public sealed record PlatformTenantCreateInput(string? Name, string? Slug,
-    string? AdminEmail, string? AccessMode, DateTime? AccessExpiresAtUtc, string? Reason);
+    string? AdminEmail, string? AccessMode, DateTime? AccessExpiresAtUtc, string? Reason,
+    string? AdminPassword = null);
 public sealed record PlatformTenantActiveInput(bool IsActive, int Revision, string? Reason);
 public sealed record PlatformTenantAccessInput(string? AccessMode,
     DateTime? AccessExpiresAtUtc, int Revision, string? Reason);
@@ -198,7 +199,7 @@ public static class PlatformApi
     }
 
     private static async Task<IResult> CreateTenant(PlatformTenantCreateInput input,
-        ImportDb db, ClaimsPrincipal principal)
+        ImportDb db, ClaimsPrincipal principal, UserManager<ImportUser> userManager)
     {
         var name = input.Name?.Trim() ?? "";
         var slug = input.Slug?.Trim().ToLowerInvariant() ?? "";
@@ -211,6 +212,23 @@ public static class PlatformApi
         if (await db.Users.AnyAsync(x => x.NormalizedEmail == email.ToUpperInvariant()) ||
             await db.PlatformOperators.AnyAsync(x => x.Email == email))
             return Results.Conflict(new { error = "email_already_registered" });
+        // New platform UI provisions an actual tenant Admin, not an invitation.
+        // Retain the original invitation API contract for older callers.
+        var direct = input.AdminPassword is not null;
+        if (direct)
+        {
+            var passwordErrors = new List<string>();
+            foreach (var validator in userManager.PasswordValidators)
+            {
+                var result = await validator.ValidateAsync(userManager, new ImportUser
+                    { Email = email, UserName = email }, input.AdminPassword!);
+                if (!result.Succeeded)
+                    passwordErrors.AddRange(result.Errors.Select(e => e.Code));
+            }
+            var errors = passwordErrors.Distinct().ToArray();
+            if (errors.Length > 0)
+                return Results.BadRequest(new { error = "invalid_user_or_password", details = errors });
+        }
 
         await using var tx = await db.Database.BeginTransactionAsync();
         if (await db.Tenants.AnyAsync(x => x.Slug == slug))
@@ -218,24 +236,46 @@ public static class PlatformApi
         var tenant = new Tenant { Name = name, Slug = slug,
             AccessExpiresAtUtc = input.AccessMode == "Unlimited" ? null : input.AccessExpiresAtUtc };
         db.Tenants.Add(tenant);
-        var inviteToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-        db.TenantInvitations.Add(new TenantInvitation
+        string? inviteToken = null;
+        Guid? adminUserId = null;
+        if (direct)
         {
-            TenantId = tenant.Id, Email = email, Role = "Admin",
-            CreatedById = PlatformSecurity.OperatorId(principal),
-            TokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inviteToken))),
-            ExpiresAtUtc = DateTime.UtcNow.AddHours(48)
-        });
+            var administrator = new ImportUser {
+                TenantId = tenant.Id, UserName = email, Email = email,
+                DisplayName = name, EmailConfirmed = true
+            };
+            var created = await userManager.CreateAsync(administrator, input.AdminPassword!);
+            if (!created.Succeeded)
+                return Results.BadRequest(new { error = "invalid_user_or_password",
+                    details = created.Errors.Select(e => e.Code).ToArray() });
+            var assigned = await userManager.AddToRoleAsync(administrator, "Admin");
+            if (!assigned.Succeeded)
+                throw new InvalidOperationException("Unable to assign initial tenant administrator.");
+            adminUserId = administrator.Id;
+        }
+        else
+        {
+            inviteToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+            db.TenantInvitations.Add(new TenantInvitation
+            {
+                TenantId = tenant.Id, Email = email, Role = "Admin",
+                CreatedById = PlatformSecurity.OperatorId(principal),
+                TokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inviteToken))),
+                ExpiresAtUtc = DateTime.UtcNow.AddHours(48)
+            });
+        }
         Audit(db, PlatformSecurity.OperatorId(principal), tenant.Id, null, "TenantCreated",
             input.Reason!.Trim(), null,
-            new { tenant.Name, tenant.Slug, tenant.AccessExpiresAtUtc, InitialAdminEmail = email });
+            new { tenant.Name, tenant.Slug, tenant.AccessExpiresAtUtc,
+                InitialAdminEmail = email, ProvisionedAccount = direct });
         await db.SaveChangesAsync();
         await tx.CommitAsync();
         return Results.Created($"/api/platform/tenants/{tenant.Id}", new
         {
             tenant.Id, tenant.Name, tenant.Slug, tenant.PlatformRevision,
+            accountReady = direct, adminUserId, adminEmail = email,
             invitationToken = inviteToken,
-            invitationExpiresAtUtc = DateTime.UtcNow.AddHours(48)
+            invitationExpiresAtUtc = direct ? (DateTime?)null : DateTime.UtcNow.AddHours(48)
         });
     }
 

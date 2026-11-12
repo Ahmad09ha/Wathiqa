@@ -1,4 +1,4 @@
-﻿# Wathiqa — File-first order entry & ocean tracking (2026-11-10)
+# Wathiqa — File-first order entry & ocean tracking (2026-11-10)
 
 ## Scope delivered
 
@@ -6,20 +6,15 @@
 - New file-first flow: `/import/orders/from-file` (and saved orders at `/import/orders/{id}?mode=file`).
 - Two-pane Arabic workflow: left private PDF/JPG/PNG reference preview, right five tabs: order information, payments, B/L, customs, tracking. Requires creating an order before financial or logistics writes. The source document is uploaded through the **existing** authenticated, tenant-scoped, CSRF-protected private Document API and malware scanning gate; never stored as a public blob.
 - Tabs 1–4 reuse existing, audited order/payment/logistics/document services and now extend their schema: order PI number, contract number/date, material brand; B/L shipper/consignee/notify party, on-board/original-received dates, package/pallet count; customs currency, declared value, duty rate, duties, taxes, broker/inland transport and demurrage/detention fees, warehouse delivery date; and payment method ExchangeOffice + bank/exchange name. Existing supplier directory stores company country and contacts. Do not automatically add customs estimates to the financial ledger. Currency conversion / independent per-transfer FX rates are NOT implemented or silently implied. Existing order totals and balances follow their previously approved server-side rules.
-- Tab 5: `GET/POST /api/shipments/{shipmentId}/tracking`, `POST /api/tracking/{id}/refresh`. Register **CT** (container) or **BL** (must match the chosen shipment B/L), optional shipping line SCAC; snapshots are cached per tenant in PostgreSQL, with a 30-minute rate/cost guard. Return provider status, ETD/ETA, arrival, vessel/voyage, AIS position and event timeline where provided; no fake provider data. External OpenStreetMap marker/embedded map uses last received coordinates only. Overdue ETA warning requires provider ETA past today without confirmed arrival and is not a definitive customs or delivery assertion.
+- Tab 5: `GET/POST /api/shipments/{shipmentId}/tracking`, `POST /api/tracking/{id}/refresh`. Register **CT** (container) or **BL** (must match the chosen shipment B/L), optional ShipsGo shipping-line name; snapshots are cached per tenant in PostgreSQL, with a 30-minute rate/cost guard. Return provider status, ETD/ETA, arrival, vessel/voyage, AIS position and event timeline where provided; no fake provider data. External OpenStreetMap marker/embedded map uses last received coordinates only. Overdue ETA warning requires provider ETA past today without confirmed arrival and is not a definitive customs or delivery assertion.
 
-## SeaRates configuration
+## ShipsGo tracking (current integration)
 
-SeaRates v3 endpoint: `GET https://tracking.searates.com/tracking` (query `api_key`, `number`, `type=CT|BL`, optional `sealine`, `route=true`, `ais=true`). This integration is server-only: configure the secret in a secure server environment variable, **never** in frontend, repository, or logs:
+This SeaRates implementation section has been superseded by WP-11-SHIPSGO-TRACKING-AND-ONBOARDING.md, which documents ShipsGo v1.2 integration, tracking limits per subscription and direct tenant Admin onboarding.
 
-```powershell
-$env:OceanTracking__SeaRatesApiKey = "SET_VIA_SECURE_SECRET_MANAGER"
-```
+Configure OceanTracking__ShipsGoApiKey on the backend server through a secret manager. The current provider never uses SeaRates. Without a key, number registration and cached snapshots still function but live refresh returns 503 tracking_not_configured.
 
-For ASP.NET Core's configuration hierarchy the environment variable double underscore maps to `OceanTracking:SeaRatesApiKey`. Without a key, reference registration and cached state work but live refresh returns 503 `tracking_not_configured`. No provider key was available during development, so **live provider behavior has not been E2E verified**. Confirm subscription coverage, AIS entitlement, rate limits and billing before setting the key.
-
-References are scoped to the same tenant and shipment. Do not use provider status to automatically overwrite the authoritative order/BL/customs/payment status: provider data and manual logistics are separate facts. The provider may not report vessel location or events for all carriers. Webhooks are not implemented until verified provider webhook signing and delivery contract exist. Scheduled polling, auto alerts and push notifications are not implemented.
-
+Real ShipsGo calls require a valid provider account and credits; only a loopback mock-provider test has been executed locally. Provider data does not overwrite authoritative customs, order or finance state.
 ## Migration
 
 Migrations are `20261110183000_ShipmentTrackingReferences.cs` (manual migration, verified against EF snapshot) and `20261110183901_FileFirstOrderLogisticsDetails.cs` (EF-generated, with designer and snapshot). Both were applied ONLY to isolated local development DB `wathiqa_import_dev` after a verified private backup in `.local/backups`. Existing Order.SupplierRef was copied into the new ProformaInvoiceNumber for historical rows because the previous Arabic UI labeled it as PI. Do not apply these migrations to production without separate backup, rollout and smoke tests.
@@ -29,7 +24,7 @@ Migrations are `20261110183000_ShipmentTrackingReferences.cs` (manual migration,
 - `node scripts/Browser-Orders-Test.mjs`: **20/20** combined manual order and file-first browser checks passed. `node scripts/Browser-FileFirstTracking-Test.mjs`: **8/8** file-first browser smoke checks passed (five tabs, file physically left, real PDF blob preview, required-order message, fields, 390px mobile).
 - `node scripts/Browser-Logistics-Test.mjs`: **11/11** real browser checks passed after synchronizing test clicks to completed API writes (not changing production behavior). Confirmed B/L metadata edit, container progression, customs status and mobile layout. Its tagged QA records were removed after dry-run.
 - `npm run lint` and `npm run build` succeeded in frontend; new route ` /import/orders/from-file ` is built. The local API answered its health check, and web route responded HTTP 200.
-- Pending evidence: live SeaRates request with a configured provider key, actual provider positions/events, webhook subscriptions, background alerts, and staging/production deployment verification. Do not infer these from tests without a provider key.
+- Pending evidence: live ShipsGo request with a configured provider key, actual provider positions/events, webhook subscriptions, background alerts, and staging/production deployment verification. Do not infer these from tests without a provider key.
 
 ## Operational limitations
 

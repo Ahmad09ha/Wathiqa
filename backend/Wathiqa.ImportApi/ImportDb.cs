@@ -39,6 +39,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
     public DbSet<PlatformAudit> PlatformAudits => Set<PlatformAudit>();
     public DbSet<PlatformSubscriptionPlan> PlatformSubscriptionPlans => Set<PlatformSubscriptionPlan>();
     public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
+    public DbSet<SubscriptionTrackingUsage> SubscriptionTrackingUsages => Set<SubscriptionTrackingUsage>();
 
     // Fail closed in requests without an authenticated tenant.
     public Guid CurrentTenantId
@@ -82,6 +83,8 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.HasIndex(x => x.Code).IsUnique();
             e.Property(x => x.Code).HasMaxLength(48);
             e.Property(x => x.Name).HasMaxLength(120);
+            e.ToTable(t => t.HasCheckConstraint("CK_PlatformPlan_TrackedBills",
+                "\"MaxTrackedBills\" BETWEEN 0 AND 100000"));
         });
         model.Entity<TenantSubscription>(e =>
         {
@@ -92,6 +95,18 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Plan).WithMany().HasForeignKey(x => x.PlanId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<SubscriptionTrackingUsage>(e =>
+        {
+            e.ToTable("SubscriptionTrackingUsages");
+            e.HasIndex(x => new { x.TenantId, x.TrackingCycleId, x.ShipmentId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ShipmentId });
+            e.Property(x => x.BlNumber).HasMaxLength(90);
+            e.Property(x => x.ProviderRequestId).HasMaxLength(80);
+            e.Property(x => x.State).HasMaxLength(20);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasQueryFilter(x => x.TenantId == CurrentTenantId);
         });
         model.Entity<Tenant>(e =>
         {
@@ -273,7 +288,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.HasIndex(x => new { x.TenantId, x.LastSyncedAtUtc });
             e.Property(x => x.ReferenceType).HasMaxLength(2);
             e.Property(x => x.ReferenceNumber).HasMaxLength(90);
-            e.Property(x => x.CarrierCode).HasMaxLength(12);
+            e.Property(x => x.CarrierCode).HasMaxLength(80);
             e.Property(x => x.ProviderStatus).HasMaxLength(60);
             e.Property(x => x.LastErrorCode).HasMaxLength(80);
             e.Property(x => x.SnapshotJson).HasColumnType("jsonb");

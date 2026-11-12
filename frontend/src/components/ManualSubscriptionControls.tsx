@@ -57,7 +57,7 @@ export default function ManualSubscriptionControls({tenantId,onChanged}:{tenantI
       <div className="pc-subscription-status">
         <span>{sub?sub.endedAtUtc?"اشتراك منتهٍ يدوياً":"الباقة الحالية":"حساب قديم بدون باقة"}</span>
         <strong dir="auto">{sub?.planName??"صلاحية موجودة بدون اشتراك مربوط"}</strong>
-        <small>تاريخ الوصول: {shownDate(current?.accessExpiresAtUtc??null)}</small>
+        <small>تاريخ الوصول: {shownDate(current?.accessExpiresAtUtc??null)} · حد البوالص: {sub?.maxTrackedBills??0}</small>
       </div>
       {!sub&&<p className="pc-subscription-hint">هذا التاجر محتفظ بصلاحيته السابقة. ربطه بباقة سيبدأ مدة جديدة من لحظة التعيين، ولن يتم تحويل حسابه تلقائياً.</p>}
       {sub&&<p className="pc-subscription-hint">بداية الفترة: {shownDate(sub.startedAtUtc)} · {sub.durationMonths===null?"مدة غير محدودة":sub.durationMonths+" شهر"}. التجديد لا يحصل تلقائياً.</p>}
@@ -77,7 +77,7 @@ export default function ManualSubscriptionControls({tenantId,onChanged}:{tenantI
             onChange={e=>setSelectedPlan(e.target.value)}>
             <option value="">اختر باقة متاحة</option>
             {activePlans.map(plan=><option key={plan.id} value={plan.id}>
-              {plan.name} — {plan.durationMonths===null?"بلا انتهاء":plan.durationMonths+" شهر"}
+              {plan.name} — {plan.durationMonths===null?"بلا انتهاء":plan.durationMonths+" شهر"} — {plan.maxTrackedBills} بوليصة
             </option>)}
           </select></label>
           <p className="pc-subscription-hint">التعيين أو التغيير يستبدل تاريخ الوصول الحالي بمدة الباقة الجديدة بدءاً من اليوم. لا يغيّر حالة إيقاف الشركة.</p>

@@ -7,7 +7,7 @@ using Npgsql;
 namespace Wathiqa.ImportApi;
 
 public sealed record ManualPlanCreateInput(string? Code, string? Name,
-    int? DurationMonths, string? Reason);
+    int? DurationMonths, string? Reason, int MaxTrackedBills = 0);
 public sealed record ManualPlanActiveInput(bool IsActive, string? Reason);
 public sealed record ManualSubscriptionAssignInput(Guid PlanId, int Revision, string? Reason);
 public sealed record ManualSubscriptionActionInput(int Revision, string? Reason);
@@ -40,7 +40,8 @@ public static class ManualSubscriptionsApi
             .ThenBy(x => x.Code)
             .Select(x => new
             {
-                x.Id, x.Code, x.Name, x.DurationMonths, x.IsActive, x.CreatedAtUtc,
+                x.Id, x.Code, x.Name, x.DurationMonths, x.MaxTrackedBills,
+                x.IsActive, x.CreatedAtUtc,
                 TenantCount = db.TenantSubscriptions.Count(s => s.PlanId == x.Id && s.EndedAtUtc == null)
             }).ToListAsync();
         return Results.Ok(plans);
@@ -55,6 +56,7 @@ public static class ManualSubscriptionsApi
             !Regex.IsMatch(code, "^[a-z0-9][a-z0-9-]*$") ||
             name.Length is < 2 or > 120 ||
             input.DurationMonths is not null and not (>= 1 and <= 36) ||
+            input.MaxTrackedBills is < 0 or > 100000 ||
             !ReasonOk(input.Reason))
             return Results.BadRequest(new { error = "invalid_manual_plan" });
         if (await db.PlatformSubscriptionPlans.AnyAsync(x => x.Code == code))
@@ -62,11 +64,13 @@ public static class ManualSubscriptionsApi
 
         var plan = new PlatformSubscriptionPlan
         {
-            Code = code, Name = name, DurationMonths = input.DurationMonths
+            Code = code, Name = name, DurationMonths = input.DurationMonths,
+            MaxTrackedBills = input.MaxTrackedBills
         };
         db.PlatformSubscriptionPlans.Add(plan);
         Audit(db, principal, null, "ManualPlanCreated", input.Reason!, null,
-            new { plan.Id, plan.Code, plan.Name, plan.DurationMonths, plan.IsActive });
+            new { plan.Id, plan.Code, plan.Name, plan.DurationMonths,
+                plan.MaxTrackedBills, plan.IsActive });
         try { await db.SaveChangesAsync(); }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })
@@ -74,7 +78,8 @@ public static class ManualSubscriptionsApi
             return Results.Conflict(new { error = "manual_plan_code_taken" });
         }
         return Results.Created($"/api/platform/plans/{plan.Id}",
-            new { plan.Id, plan.Code, plan.Name, plan.DurationMonths, plan.IsActive });
+            new { plan.Id, plan.Code, plan.Name, plan.DurationMonths,
+                plan.MaxTrackedBills, plan.IsActive });
     }
 
     private static async Task<IResult> ChangePlanActive(Guid planId,
@@ -121,7 +126,7 @@ public static class ManualSubscriptionsApi
             .Select(s => new
             {
                 s.TenantId, s.PlanId, PlanName = s.Plan.Name,
-                PlanCode = s.Plan.Code, s.Plan.DurationMonths,
+                PlanCode = s.Plan.Code, s.Plan.DurationMonths, s.Plan.MaxTrackedBills,
                 s.StartedAtUtc, s.ExpiresAtUtc, s.EndedAtUtc, s.LastChangedAtUtc
             }).ToDictionaryAsync(x => x.TenantId);
         var items = rows.Select(t =>
@@ -134,6 +139,7 @@ public static class ManualSubscriptionsApi
                 HasSubscription = sub is not null,
                 PlanId = sub?.PlanId, PlanName = sub?.PlanName,
                 PlanCode = sub?.PlanCode, DurationMonths = sub?.DurationMonths,
+                MaxTrackedBills = sub?.MaxTrackedBills,
                 StartedAtUtc = sub?.StartedAtUtc, EndedAtUtc = sub?.EndedAtUtc,
                 LastChangedAtUtc = sub?.LastChangedAtUtc
             };
@@ -154,7 +160,7 @@ public static class ManualSubscriptionsApi
             .Select(s => new
             {
                 s.Id, s.PlanId, PlanName = s.Plan.Name,
-                PlanCode = s.Plan.Code, s.Plan.DurationMonths,
+                PlanCode = s.Plan.Code, s.Plan.DurationMonths, s.Plan.MaxTrackedBills,
                 s.StartedAtUtc, s.ExpiresAtUtc, s.EndedAtUtc, s.LastChangedAtUtc
             }).SingleOrDefaultAsync();
         return Results.Ok(new
@@ -193,6 +199,7 @@ public static class ManualSubscriptionsApi
             db.TenantSubscriptions.Add(existing);
         }
         existing.PlanId = plan.Id;
+        existing.TrackingCycleId = Guid.NewGuid();
         existing.StartedAtUtc = now;
         existing.ExpiresAtUtc = expiry;
         existing.EndedAtUtc = null;
@@ -201,6 +208,7 @@ public static class ManualSubscriptionsApi
         tenant.PlatformRevision++;
         Audit(db, principal, tenantId, "ManualSubscriptionAssigned", input.Reason!, before,
             new { PlanId = plan.Id, plan.Code, plan.Name, plan.DurationMonths,
+                plan.MaxTrackedBills,
                 existing.StartedAtUtc, existing.ExpiresAtUtc, existing.EndedAtUtc,
                 tenant.PlatformRevision });
         await db.SaveChangesAsync();
@@ -233,6 +241,7 @@ public static class ManualSubscriptionsApi
         var start = current.ExpiresAtUtc > now ? current.ExpiresAtUtc.Value : now;
         var expiry = start.AddMonths(plan.DurationMonths.Value);
         current.ExpiresAtUtc = expiry;
+        current.TrackingCycleId = Guid.NewGuid();
         current.LastChangedAtUtc = now;
         tenant.AccessExpiresAtUtc = expiry;
         tenant.PlatformRevision++;

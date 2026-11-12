@@ -19,7 +19,7 @@ public static class TrackingApi
             .RequireAuthorization("TenantMember");
 
         shipments.MapGet("/{shipmentId:guid}/tracking", async (
-            Guid shipmentId, ImportDb db, SeaRatesTrackingClient client) =>
+            Guid shipmentId, ImportDb db, ShipsGoTrackingClient client) =>
         {
             if (!await db.Shipments.AnyAsync(x => x.Id == shipmentId))
                 return Results.NotFound();
@@ -27,9 +27,19 @@ public static class TrackingApi
             var records = await db.TrackingReferences.AsNoTracking()
                 .Where(x => x.ShipmentId == shipmentId)
                 .OrderBy(x => x.CreatedAtUtc).ToListAsync();
+            var tenantId = db.CurrentTenantId;
+            var subscription = await db.TenantSubscriptions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.EndedAtUtc == null)
+                .Select(x => new { x.TrackingCycleId, x.Plan.MaxTrackedBills })
+                .SingleOrDefaultAsync();
+            var usage = subscription is null ? 0 : await db.SubscriptionTrackingUsages
+                .CountAsync(x => x.TrackingCycleId == subscription.TrackingCycleId);
             return Results.Ok(new
             {
                 configured = client.IsConfigured,
+                quota = new { limit = subscription?.MaxTrackedBills ?? 0,
+                    used = usage, remaining = Math.Max(0,(subscription?.MaxTrackedBills ?? 0)-usage) },
+                provider = "ShipsGo",
                 records = records.Select(Info)
             });
         });
@@ -59,9 +69,10 @@ public static class TrackingApi
                     x.Number == number))
                 return Bad("tracking_container_not_in_shipment");
 
-            var carrier = (body.CarrierCode ?? "").Trim().ToUpperInvariant();
+            var carrier = (body.CarrierCode ?? "").Trim();
             if (carrier.Length > 0 &&
-                !Regex.IsMatch(carrier, "^[A-Z0-9]{2,12}$"))
+                (carrier.Length > 80 ||
+                 !Regex.IsMatch(carrier, "^[A-Za-z0-9][A-Za-z0-9 .&-]{1,79}$")))
                 return Bad("tracking_invalid_carrier");
 
             var existing = await db.TrackingReferences.SingleOrDefaultAsync(x =>
@@ -106,7 +117,7 @@ public static class TrackingApi
         });
 
         tracking.MapPost("/{id:guid}/refresh", async (
-            Guid id, ImportDb db, SeaRatesTrackingClient client,
+            Guid id, ImportDb db, ShipsGoTrackingClient client,
             System.Security.Claims.ClaimsPrincipal principal, CancellationToken ct) =>
         {
             var item = await db.TrackingReferences.SingleOrDefaultAsync(x => x.Id == id, ct);
@@ -119,23 +130,93 @@ public static class TrackingApi
             if (item.LastSyncedAtUtc > now - RefreshInterval)
                 return Results.Ok(Info(item));
 
-            // Atomic reservation: two browsers cannot trigger simultaneous
-            // chargeable provider calls for the same tracking reference.
-            var claimed = await db.TrackingReferences
-                .Where(x => x.Id == id &&
-                    (x.LastAttemptAtUtc == null ||
-                     x.LastAttemptAtUtc < now - RefreshInterval))
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(x => x.LastAttemptAtUtc, now), ct);
-            if (claimed == 0)
-                return Results.Json(new { error = "tracking_refresh_too_soon" },
-                    statusCode: StatusCodes.Status429TooManyRequests);
+            var tenantId = CurrentTenant.Id(principal);
+            SubscriptionTrackingUsage? usage;
+            var freshActivation = false;
+            var newUsage = false;
+            // Lock the subscription row before counting/reserving a chargeable
+            // slot. All tabs/containers under one B/L share this single ledger.
+            await using (var tx = await db.Database.BeginTransactionAsync(ct))
+            {
+                var subscription = await db.TenantSubscriptions.FromSqlInterpolated(
+                    $"SELECT * FROM \"TenantSubscriptions\" WHERE \"TenantId\"={tenantId} FOR UPDATE")
+                    .SingleOrDefaultAsync(ct);
+                if (subscription is null || subscription.EndedAtUtc is not null)
+                    return Results.Json(new { error = "tracking_subscription_required" },
+                        statusCode: StatusCodes.Status403Forbidden);
+                var limit = await db.PlatformSubscriptionPlans
+                    .Where(p => p.Id == subscription.PlanId)
+                    .Select(p => p.MaxTrackedBills).SingleAsync(ct);
+                if (limit <= 0)
+                    return Results.Json(new { error = "tracking_quota_disabled" },
+                        statusCode: StatusCodes.Status403Forbidden);
+                usage = await db.SubscriptionTrackingUsages.SingleOrDefaultAsync(x =>
+                    x.TrackingCycleId == subscription.TrackingCycleId &&
+                    x.ShipmentId == item.ShipmentId,ct);
+                if (usage is { ProviderRequestId.Length: 0 })
+                    return Results.Conflict(new { error = "tracking_activation_pending_review" });
+                if (usage is null)
+                {
+                    newUsage = true;
+                    var count = await db.SubscriptionTrackingUsages.CountAsync(x =>
+                        x.TrackingCycleId == subscription.TrackingCycleId,ct);
+                    if (count >= limit)
+                        return Results.Json(new { error = "tracking_quota_exceeded" },
+                            statusCode: StatusCodes.Status403Forbidden);
+                    // A shipment edit locks this same row. Taking the lock
+                    // prevents changing the B/L between quota reservation
+                    // and the first chargeable provider POST.
+                    var lockedShipment = await db.Shipments.FromSqlInterpolated(
+                        $"SELECT * FROM \"Shipments\" WHERE \"Id\"={item.ShipmentId} FOR UPDATE")
+                        .SingleAsync(ct);
+                    var bl = lockedShipment.BlNumber;
+                    // Reusing a previously paid ShipsGo tracking avoids a
+                    // second provider POST when the subscription renews.
+                    var old = await db.SubscriptionTrackingUsages.AsNoTracking()
+                        .Where(x => x.ShipmentId == item.ShipmentId &&
+                            x.BlNumber == bl && x.ProviderRequestId != "")
+                        .OrderByDescending(x => x.CreatedAtUtc).FirstOrDefaultAsync(ct);
+                    usage = new SubscriptionTrackingUsage {
+                        TenantId = tenantId, ShipmentId = item.ShipmentId,
+                        TrackingCycleId = subscription.TrackingCycleId,
+                        BlNumber = bl,
+                        ProviderRequestId = old?.ProviderRequestId ?? "",
+                        State = old is null ? "Reserved" : "Active"
+                    };
+                    freshActivation = old is null;
+                }
+                // Reserve the rate-limit slot in the SAME transaction as
+                // tracking quota; a 429 must never leave an orphan paid slot.
+                var claimed = await db.TrackingReferences
+                    .Where(x => x.Id == id &&
+                        (x.LastAttemptAtUtc == null ||
+                         x.LastAttemptAtUtc < now - RefreshInterval))
+                    .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.LastAttemptAtUtc,now),ct);
+                if (claimed == 0)
+                    return Results.Json(new { error = "tracking_refresh_too_soon" },
+                        statusCode: StatusCodes.Status429TooManyRequests);
+                if (newUsage)
+                {
+                    db.SubscriptionTrackingUsages.Add(usage);
+                    await db.SaveChangesAsync(ct);
+                }
+                await tx.CommitAsync(ct);
+            }
 
+            // Reserved with no provider ID may already have consumed a credit.
+            // It must NOT be replayed after a crash/timeout/ambiguous response.
             item.LastAttemptAtUtc = now;
             try
             {
-                var snapshot = await client.FetchAsync(item.ReferenceType,
-                    item.ReferenceNumber, item.CarrierCode, ct);
+                if (freshActivation)
+                {
+                    var registered = await client.RegisterBillAsync(
+                        usage.BlNumber, item.CarrierCode,ct);
+                    usage.ProviderRequestId = registered;
+                    usage.State = "Active";
+                    await db.SaveChangesAsync(ct);
+                }
+                var snapshot = await client.FetchAsync(usage.ProviderRequestId, ct);
                 item.SnapshotJson = JsonSerializer.Serialize(snapshot);
                 item.ProviderStatus = snapshot.Status.Length == 0
                     ? "Unknown" : snapshot.Status[..Math.Min(snapshot.Status.Length, 60)];
@@ -148,6 +229,13 @@ public static class TrackingApi
             }
             catch (TrackingProviderException ex)
             {
+                if (freshActivation && usage.ProviderRequestId.Length == 0)
+                {
+                    if (ex.Definitive)
+                        db.SubscriptionTrackingUsages.Remove(usage);
+                    else
+                        usage.State = "NeedsReview";
+                }
                 item.LastErrorCode = ex.Code;
                 item.UpdatedAtUtc = DateTime.UtcNow;
                 item.UpdatedById = CurrentTenant.UserId(principal);

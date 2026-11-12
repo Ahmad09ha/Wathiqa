@@ -162,7 +162,8 @@ export interface SaveOrderInput {
   items: OrderInputItem[];
 }
 export class ImportApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string,
+    public readonly code?: string) {
     super(message);
     this.name = "ImportApiError";
   }
@@ -306,6 +307,14 @@ const ArabicErrors: Record<string, string> = {
   ,tracking_bl_must_match_shipment: "رقم البوليصة يجب أن يطابق البوليصة المحددة."
   ,tracking_container_not_in_shipment: "لا يمكن تتبع حاوية غير مسجلة ضمن هذه البوليصة. أضفها من تبويب البوليصة أولاً."
   ,tracking_reference_limit: "وصلت هذه البوليصة للحد الأقصى من مراجع التتبع."
+  ,tracking_subscription_required: "لتفعيل تتبّع ShipsGo يلزم اشتراك فعّال مربوط بباقة."
+  ,tracking_quota_disabled: "باقتك لا تتضمن تتبّع البوالص. تواصل مع مسؤول المنصة."
+  ,tracking_quota_exceeded: "استهلكت العدد المسموح من البوالص في باقتك. جدد الاشتراك أو غيّر الباقة."
+  ,tracking_activation_pending_review: "طلب التتبع السابق يحتاج مراجعة قبل إعادة إرساله لمنع خصم رصيد ShipsGo مرتين."
+  ,tracking_provider_no_credits: "رصيد ShipsGo الخاص بالمنصة غير كافٍ."
+  ,tracking_provider_invalid_reference: "رقم البوليصة أو شركة الشحن غير مقبولين لدى ShipsGo."
+  ,tracking_provider_ambiguous_registration: "ShipsGo استلم طلباً لكن رقم تأكيده غير واضح؛ لن نكرره كي لا يتم الخصم مرتين."
+  ,tracking_bl_change_requires_reconciliation: "لا يمكن تغيير رقم البوليصة بعد تفعيل التتبع المدفوع. اطلب مراجعة التتبع من مسؤول المنصة."
   ,tracking_invalid_carrier: "رمز شركة الشحن يجب أن يكون من حرفين إلى 12 حرفاً أو رقماً."
   ,tracking_reference_conflict: "رقم التتبع مسجل بالفعل. أعد تحميل البيانات."
   ,tracking_not_configured: "خدمة التتبع البحري غير مفعّلة على السيرفر."
@@ -316,6 +325,18 @@ const ArabicErrors: Record<string, string> = {
   ,tracking_provider_invalid_response: "أعاد مزوّد التتبع بيانات غير متوقعة."
   ,tracking_provider_timeout: "انتهت مهلة استجابة مزوّد التتبع."
   ,tracking_refresh_too_soon: "تم طلب تحديث قريباً. انتظر مدة التحديث قبل طلب استعلام جديد."
+};
+const InvitationIdentityErrors: Record<string, string> = {
+  PasswordTooShort: "كلمة المرور قصيرة؛ الحد الأدنى 12 محرفاً.",
+  PasswordRequiresDigit: "أضف رقماً واحداً على الأقل إلى كلمة المرور.",
+  PasswordRequiresLower: "أضف حرفاً صغيراً واحداً على الأقل إلى كلمة المرور.",
+  PasswordRequiresUpper: "أضف حرفاً كبيراً واحداً على الأقل إلى كلمة المرور.",
+  PasswordRequiresNonAlphanumeric: "أضف رمزاً خاصاً مثل ! أو @ إلى كلمة المرور.",
+  PasswordRequiresUniqueChars: "كلمة المرور تحتاج تنوعاً أكبر من المحارف.",
+  DuplicateEmail: "هذا البريد مسجل مسبقاً؛ تواصل مع مدير الشركة.",
+  DuplicateUserName: "هذا البريد مسجل مسبقاً؛ تواصل مع مدير الشركة.",
+  InvalidEmail: "البريد المرتبط بالدعوة غير صالح؛ اطلب دعوة جديدة من المدير.",
+  InvalidUserName: "البريد المرتبط بالدعوة غير مدعوم؛ تواصل مع المدير."
 };
 async function acquireCsrf(): Promise<string> {
   if (csrfValue) return csrfValue;
@@ -350,8 +371,18 @@ export async function importApi<T>(path: string, options: RequestInit = {}): Pro
   }
   if (!response.ok) {
     let code: string | undefined;
-    try { code = (await response.json() as { error?: string }).error; } catch { /* no body */ }
-    const message = (code && ArabicErrors[code]) || ({
+    let details: string[] | undefined;
+    try {
+      const payload = await response.json() as { error?: string; details?: unknown };
+      code = payload.error;
+      if (Array.isArray(payload.details))
+        details = payload.details.filter((x): x is string => typeof x === "string");
+    } catch { /* no body */ }
+    const identityMessages = code === "invalid_user_or_password"
+      ? [...new Set((details || []).map(x => InvitationIdentityErrors[x]).filter(Boolean))]
+      : [];
+    const message = (identityMessages.length ? identityMessages.join(" ") : null) ||
+      (code && ArabicErrors[code]) || ({
       400: "بيانات الطلب غير صالحة. راجع المدخلات.",
       401: "انتهت الجلسة أو لم تسجّل الدخول بعد.",
       403: "ليس لديك صلاحية لتنفيذ هذا الإجراء.",
@@ -362,7 +393,7 @@ export async function importApi<T>(path: string, options: RequestInit = {}): Pro
       500: "حدث خطأ في الخادم. حاول لاحقاً."
     } as Record<number, string>)[response.status] || "تعذّر تنفيذ العملية.";
     if (code === "csrf_invalid") resetImportCsrf();
-    throw new ImportApiError(response.status, message);
+    throw new ImportApiError(response.status, message, code);
   }
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }

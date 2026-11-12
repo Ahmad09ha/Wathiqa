@@ -113,12 +113,18 @@ public static class AuthApi
         app.MapPost("/api/auth/invitations/accept", async (
             AcceptInvitationRequest body, ImportDb db, UserManager<ImportUser> users) =>
         {
-            if (string.IsNullOrWhiteSpace(body.Token) || body.Token.Length > 256)
+            // Tokens are Base64Url-encoded 32-byte random values (43 ASCII chars).
+            // Copying from email or chat can insert line breaks or invisible
+            // formatting marks. Ignore formatting, never change the secret bytes.
+            var token = new string((body.Token ?? "").Where(c =>
+                !char.IsWhiteSpace(c) && c is not ('\u200B' or '\u200C' or '\u200D' or '\uFEFF')).ToArray());
+            if (token.Length != 43 || token.Any(c =>
+                !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
                 return Results.BadRequest(new { error = "invalid_invitation" });
             var name = body.DisplayName?.Trim() ?? "";
             if (name.Length is < 2 or > 160)
                 return Results.BadRequest(new { error = "invalid_display_name" });
-            var digest = Hash(body.Token);
+            var digest = Hash(token);
             var now = DateTime.UtcNow;
             await using var transaction = await db.Database.BeginTransactionAsync();
             // Atomic claim prevents a second use under concurrent requests.

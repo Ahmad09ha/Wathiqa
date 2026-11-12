@@ -66,10 +66,33 @@ public static class LogisticsApi
             try{input=LogisticsValidation.Check(body);}
             catch(LogisticsValidationException ex){return Bad(ex);}
             await using var transaction=await db.Database.BeginTransactionAsync();
-            var shipment=await db.Shipments.Include(s=>s.Containers).Include(s=>s.Clearance)
-                .SingleOrDefaultAsync(s=>s.Id==id);
+            // Lock the B/L row while editing. Tracking activation takes the
+            // same row lock before reserving its paid ShipsGo request.
+            var shipment=await db.Shipments.FromSqlInterpolated(
+                $"SELECT * FROM \"Shipments\" WHERE \"Id\"={id} FOR UPDATE")
+                .SingleOrDefaultAsync();
             if(shipment is null)return Results.NotFound();
             if(shipment.Revision!=body.Revision)return Conflict("stale_shipment_revision");
+            await db.Entry(shipment).Collection(s=>s.Containers).LoadAsync();
+            await db.Entry(shipment).Reference(s=>s.Clearance).LoadAsync();
+            var changedBill=!string.Equals(shipment.BlNumber,input.BlNumber,
+                StringComparison.OrdinalIgnoreCase);
+            if(changedBill && await db.SubscriptionTrackingUsages.AnyAsync(x=>
+                x.ShipmentId==id))
+                return Conflict("tracking_bl_change_requires_reconciliation");
+            if(changedBill)
+            {
+                // Pending (never activated) B/L references follow the
+                // correction rather than retaining an unrelated number.
+                var refs=await db.TrackingReferences.Where(x=>
+                    x.ShipmentId==id && x.ReferenceType=="BL").ToListAsync();
+                foreach(var reference in refs)
+                {
+                    reference.ReferenceNumber=input.BlNumber.ToUpperInvariant();
+                    reference.UpdatedAtUtc=DateTime.UtcNow;
+                    reference.UpdatedById=CurrentTenant.UserId(principal);
+                }
+            }
             var line=await ShippingLine(db,input.ShippingLineId);
             if(input.ShippingLineId.HasValue && line is null)
                 return Invalid("shipping_line_unavailable");

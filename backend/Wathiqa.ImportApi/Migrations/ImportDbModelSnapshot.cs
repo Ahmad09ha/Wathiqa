@@ -1298,6 +1298,9 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("MaxTrackedBills")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -1311,6 +1314,8 @@ namespace Wathiqa.ImportApi.Migrations
                     b.ToTable("PlatformSubscriptionPlans", null, t =>
                         {
                             t.HasCheckConstraint("CK_PlatformPlan_Months", "\"DurationMonths\" IS NULL OR (\"DurationMonths\" BETWEEN 1 AND 36)");
+
+                            t.HasCheckConstraint("CK_PlatformPlan_TrackedBills", "\"MaxTrackedBills\" BETWEEN 0 AND 100000");
                         });
                 });
 
@@ -1624,8 +1629,8 @@ namespace Wathiqa.ImportApi.Migrations
 
                     b.Property<string>("CarrierCode")
                         .IsRequired()
-                        .HasMaxLength(12)
-                        .HasColumnType("character varying(12)");
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1859,6 +1864,49 @@ namespace Wathiqa.ImportApi.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Wathiqa.ImportApi.SubscriptionTrackingUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BlNumber")
+                        .IsRequired()
+                        .HasMaxLength(90)
+                        .HasColumnType("character varying(90)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderRequestId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("ShipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrackingCycleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ShipmentId");
+
+                    b.HasIndex("TenantId", "TrackingCycleId", "ShipmentId")
+                        .IsUnique();
+
+                    b.ToTable("SubscriptionTrackingUsages", (string)null);
+                });
+
             modelBuilder.Entity("Wathiqa.ImportApi.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2049,6 +2097,9 @@ namespace Wathiqa.ImportApi.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrackingCycleId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -2503,6 +2554,15 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Navigation("Order");
 
                     b.Navigation("Shipment");
+                });
+
+            modelBuilder.Entity("Wathiqa.ImportApi.SubscriptionTrackingUsage", b =>
+                {
+                    b.HasOne("Wathiqa.ImportApi.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Wathiqa.ImportApi.TenantCompany", b =>

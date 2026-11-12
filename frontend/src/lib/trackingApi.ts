@@ -16,7 +16,8 @@ export interface TrackingReference {
   lastAttemptAtUtc:string|null;lastErrorCode:string;snapshot:OceanSnapshot|null;
 }
 export const listTracking=(shipmentId:string)=>
-  importApi<{configured:boolean;records:TrackingReference[]}>(
+  importApi<{configured:boolean;provider:string;quota:{
+    limit:number;used:number;remaining:number};records:TrackingReference[]}>(
     "/api/shipments/"+encodeURIComponent(shipmentId)+"/tracking");
 export const registerTracking=(shipmentId:string,body:{
   referenceType:"CT"|"BL";referenceNumber:string;carrierCode:string;
