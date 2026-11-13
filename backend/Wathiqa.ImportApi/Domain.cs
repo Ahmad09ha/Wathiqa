@@ -78,6 +78,30 @@ public sealed class TenantCompanyAudit
     public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
 }
 
+// Reusable tenant-owned port directory. Orders intentionally retain their
+// original loading/discharge TEXT snapshots for historical compatibility.
+public sealed class TenantPort
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public string NormalizedName { get; set; } = "";
+    public string Country { get; set; } = "";
+    public bool IsDeleted { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class TenantPortAudit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PortId { get; set; }
+    public Guid ActorId { get; set; }
+    public string Action { get; set; } = "";
+    public string NameSnapshot { get; set; } = "";
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+}
+
 public sealed class SecurityAudit
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -72,6 +72,7 @@ DO $$ BEGIN
      OR EXISTS(SELECT 1 FROM "Companies" WHERE "TenantId"='__ID__'::uuid)
      OR EXISTS(SELECT 1 FROM "Shipments" WHERE "TenantId"='__ID__'::uuid)
      OR EXISTS(SELECT 1 FROM "StoredDocuments" WHERE "TenantId"='__ID__'::uuid)
+     OR EXISTS(SELECT 1 FROM "TenantPorts" WHERE "TenantId"='__ID__'::uuid)
      OR EXISTS(SELECT 1 FROM "PaymentTransfers" WHERE "TenantId"='__ID__'::uuid) THEN
     RAISE EXCEPTION 'QA tenant has real business records; refusing cleanup';
   END IF;

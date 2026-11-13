@@ -27,10 +27,11 @@ It is not the platform SuperAdmin dashboard. It reuses the existing ImportShell 
 - Empty tenants produce zero-state metric objects and a 14-day series of zeros, not exceptions.
 
 \`GET /api/dashboard/activity?days=30&category=all&page=1&pageSize=20\`
-- Same period convention; category one of \`all\`, \`orders\`, \`finance\`, \`logistics\`, \`documents\`, \`companies\`, \`tracking\`, \`security\`, \`subscription\`.
+- Same period convention; category one of \`all\`, \`orders\`, \`finance\`, \`logistics\`, \`documents\`, \`companies\`, \`ports\`, \`tracking\`, \`security\`, \`subscription\`.
 - Pages bounded to 1..100000 and sizes 1..50; server does \`COUNT\`, ordered \`OFFSET/LIMIT\`, then batch-resolves actor/subject names within the same tenant.
 - Orders, payments, shipping/customs, documents and team-security actions reuse their existing append-only audit records. Tracking includes reference registration and its most recent successful synchronization. Older companies with no audit still display the known creation timestamp as a legacy event.
 - New company Create/Update/Delete mutations write to \`CompanyAudits\` in the SAME EF SaveChanges transaction as the business change, with actor ID, timestamp, company ID, name/type snapshot. The feed reads the name snapshot stored at each event, so later company renaming never rewrites earlier entries. No contact, tax or banking details are duplicated.
+- New port Create/Update/Delete events are recorded in tenant-scoped \`TenantPortAudits\` with the original name and actor. The \`ports\` filter was added in WP-13 without exposing another tenant's port history.
 - Historical synthetic company creation is suppressed when a real \`Created\` audit exists, to prevent double counting. Deleted companies may still be named from tenant-scoped, soft-deleted records.
 - For Admin, security and subscription events are included. For Staff, the API rejects explicit \`security\`/\`subscription\` filters with 403 and excludes those categories even from \`all\`. This is enforced server-side, not merely hidden in the UI.
 

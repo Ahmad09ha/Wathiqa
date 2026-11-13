@@ -11,9 +11,10 @@ import ImportPaymentPanel from "@/components/ImportPaymentPanel";
 import ImportTrackingPanel from "@/components/ImportTrackingPanel";
 import {documentPreviewUrl,listDocuments,uploadPrivateDocument,DocumentType,BusinessDocument} from "@/lib/documentsApi";
 import { useToast } from "@/components/ToastProvider";
-import { fetchImportCompanies, fetchOrder, importApi, ImportCompany, CurrentImportUser, OrderInputItem, PurchaseOrder, SaveOrderInput } from "@/lib/importApi";
+import { fetchImportCompanies, fetchTenantPorts, createTenantPort, fetchOrder, importApi, ImportCompany, TenantPort, CurrentImportUser, OrderInputItem, PurchaseOrder, SaveOrderInput } from "@/lib/importApi";
 
 type LocalLine = OrderInputItem & {localKey:string};
+type QuickReference = "Supplier" | "Customer" | "LoadingPort" | "DischargePort";
 const commonTerms = ["EXW","FCA","FAS","FOB","CFR","CIF","CPT","CIP","DAP","DPU","DDP"];
 const currencies = ["USD","EUR","CNY","TRY"];
 function todayLocal() {
@@ -36,6 +37,10 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
   const [form,setForm] = useState<SaveOrderInput>(()=>({...emptyForm(),items:[newLine()]}));
   const [lines,setLines] = useState<LocalLine[]>(()=>[newLine()]);
   const [companies,setCompanies] = useState<ImportCompany[]>([]);
+  const [ports,setPorts] = useState<TenantPort[]>([]);
+  const [quickReference,setQuickReference] = useState<QuickReference|null>(null);
+  const [quickName,setQuickName] = useState("");
+  const [quickSaving,setQuickSaving] = useState(false);
   const [current,setCurrent] = useState<PurchaseOrder|null>(null);
   const [loading,setLoading] = useState(true);
   const [saving,setSaving] = useState(false);
@@ -110,10 +115,11 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
 
   useEffect(()=>{
     let cancelled=false;
-    Promise.all([fetchImportCompanies(),orderId?fetchOrder(orderId):Promise.resolve(null)])
-      .then(([list,order])=>{
+    Promise.all([fetchImportCompanies(),fetchTenantPorts(),orderId?fetchOrder(orderId):Promise.resolve(null)])
+      .then(([list,portList,order])=>{
         if(cancelled)return;
         setCompanies(list);
+        setPorts(portList);
         if(order) {
           adoptOrder(order);
         } else setLines([newLine()]);
@@ -137,6 +143,47 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
   function setLineField<K extends keyof OrderInputItem>(key:string,field:K,value:OrderInputItem[K]){
     setLines(prev=>prev.map(row=>row.localKey===key?{...row,[field]:value}:row));
     setDirty(true);
+  }
+  function openQuickReference(reference:QuickReference){
+    setQuickReference(reference);setQuickName("");
+  }
+  async function createReference(){
+    if(!quickReference||quickSaving)return;
+    const name=quickName.trim();
+    if(name.length<2){
+      notify({kind:"error",title:"أدخل اسماً صالحاً",description:"الاسم يجب ألا يقل عن حرفين."});
+      return;
+    }
+    setQuickSaving(true);
+    try{
+      if(quickReference==="Supplier"||quickReference==="Customer"){
+        const kind=quickReference;
+        // Use the existing tenant-scoped record instead of duplicating it.
+        let record=companies.find(c=>c.type===kind &&
+          c.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase());
+        if(!record){
+          record=await importApi<ImportCompany>("/api/companies",{
+            method:"POST",body:JSON.stringify({name,type:kind})
+          });
+          setCompanies(old=>[...old,record!].sort((a,b)=>a.name.localeCompare(b.name)));
+        }
+        setField(kind==="Supplier"?"supplierId":"customerId",record.id);
+      }else{
+        const port=ports.find(p=>p.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase());
+        let selected=port?.name;
+        if(!selected || port?.source==="History"){
+          const created=await createTenantPort(name);
+          selected=created.name;
+          setPorts(old=>[...old.filter(p=>p.name.trim().toLocaleLowerCase()!==name.toLocaleLowerCase()),created]
+            .sort((a,b)=>a.name.localeCompare(b.name)));
+        }
+        setField(quickReference==="LoadingPort"?"loadingPort":"dischargePort",selected);
+      }
+      setQuickReference(null);setQuickName("");
+      notify({kind:"success",title:"تم حفظ المرجع",description:"صار متاحاً ضمن بيانات شركتك فقط."});
+    }catch(error){
+      notify({kind:"error",title:"تعذّر إضافة المرجع",description:(error as Error).message});
+    }finally{setQuickSaving(false)}
   }
   async function save(event:FormEvent){
     event.preventDefault();
@@ -251,21 +298,40 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
         <fieldset className="im-order-readonly-fieldset" disabled={!canManagePayments}>
         <section className="im-order-form-section">
           <div className="im-order-section-title"><span className="im-order-section-no">01</span>
-            <div><h2>بيانات طلب الشراء</h2><p>المورّد والتاريخ والموانئ المرجعية للطلب.</p></div></div>
+            <div><h2>بيانات طلب الشراء</h2><p>المورّد والتاريخ والموانئ المرجعية للطلب.</p>
+              <Link href="/import/reference-data" className="im-reference-manager-link">إدارة الموردين والعملاء والموانئ</Link>
+            </div></div>
           <div className="im-order-fields">
-            <label>المورّد <span className="im-required">*</span>
-              <select required value={form.supplierId} onChange={e=>setField("supplierId",e.target.value)}>
+            <div className="im-reference-picker"><label htmlFor="order-supplier">المورّد <span className="im-required">*</span></label>
+              <div className="im-reference-controls">
+              <select id="order-supplier" required value={form.supplierId} onChange={e=>setField("supplierId",e.target.value)}>
                 <option value="">اختر المورّد</option>
                 {suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              {suppliers.length===0&&<Link href="/import/companies" className="im-order-helper">ما عندك مورّد؟ أضف واحداً أولاً</Link>}
-            </label>
-            <label>العميل <small>اختياري</small>
-              <select value={form.customerId||""} onChange={e=>setField("customerId",e.target.value||null)}>
+              <button type="button" title="إضافة مورّد سريعاً" aria-label="إضافة مورّد سريعاً"
+                onClick={()=>openQuickReference("Supplier")}><Plus size={18}/></button></div>
+              {suppliers.length===0&&<small>ما عندك موردين؟ اضغط + لإضافة الأول.</small>}
+            </div>
+            <div className="im-reference-picker"><label htmlFor="order-customer">العميل <small>اختياري</small></label>
+              <div className="im-reference-controls">
+              <select id="order-customer" value={form.customerId||""} onChange={e=>setField("customerId",e.target.value||null)}>
                 <option value="">بدون عميل مرتبط</option>
                 {customers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-            </label>
+              <button type="button" title="إضافة عميل سريعاً" aria-label="إضافة عميل سريعاً"
+                onClick={()=>openQuickReference("Customer")}><Plus size={18}/></button></div>
+            </div>
+            {quickReference&&(quickReference==="Supplier"||quickReference==="Customer")&&
+              <div className="im-reference-inline-editor">
+                <strong>إضافة {quickReference==="Supplier"?"مورّد":"عميل"} إلى دليل شركتك</strong>
+                <input dir="auto" minLength={2} maxLength={180} value={quickName} autoFocus
+                  aria-label="اسم الجهة الجديدة" placeholder="اكتب اسم الجهة"
+                  onChange={e=>setQuickName(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();void createReference();}}}/>
+                <div><button type="button" disabled={quickSaving} onClick={()=>void createReference()}>
+                  {quickSaving?"جارٍ الحفظ...":"حفظ واختيار"}</button>
+                  <button type="button" disabled={quickSaving} onClick={()=>setQuickReference(null)}>إلغاء</button></div>
+              </div>}
             <label>تاريخ الطلب <span className="im-required">*</span>
               <input required type="date" value={form.orderDate} onChange={e=>setField("orderDate",e.target.value)}/>
             </label>
@@ -295,14 +361,37 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
                 {currencies.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </label>
-            <label>ميناء التحميل
-              <input maxLength={160} dir="auto" placeholder="Ningbo" value={form.loadingPort}
-                onChange={e=>setField("loadingPort",e.target.value)}/>
-            </label>
-            <label>ميناء الوصول
-              <input maxLength={160} dir="auto" placeholder="Latakia" value={form.dischargePort}
-                onChange={e=>setField("dischargePort",e.target.value)}/>
-            </label>
+            {(["LoadingPort","DischargePort"] as const).map(portKind=>{
+              const field=portKind==="LoadingPort"?"loadingPort":"dischargePort";
+              const selected=form[field];
+              const options=ports.some(p=>p.name===selected)||!selected?ports:
+                [{id:null,name:selected,country:"",source:"History" as const,createdAtUtc:null},...ports];
+              return <div key={portKind} className="im-reference-picker">
+                <label htmlFor={"order-"+field}>{portKind==="LoadingPort"?"ميناء التحميل":"ميناء الوصول"}</label>
+                <div className="im-reference-controls">
+                  <select id={"order-"+field} value={selected} onChange={e=>setField(field,e.target.value)}>
+                    <option value="">غير محدد</option>
+                    {options.map(p=><option key={p.id||"legacy:"+p.name} value={p.name}>
+                      {p.name}{p.country?" — "+p.country:""}{p.source==="History"?" (من طلب سابق)":""}
+                    </option>)}
+                  </select>
+                  <button type="button" title="إضافة ميناء سريعاً"
+                    aria-label={"إضافة "+(portKind==="LoadingPort"?"ميناء تحميل":"ميناء وصول")}
+                    onClick={()=>openQuickReference(portKind)}><Plus size={18}/></button>
+                </div>
+              </div>;
+            })}
+            {quickReference&&(quickReference==="LoadingPort"||quickReference==="DischargePort")&&
+              <div className="im-reference-inline-editor">
+                <strong>إضافة ميناء إلى دليل شركتك</strong>
+                <input dir="auto" minLength={2} maxLength={160} autoFocus value={quickName}
+                  aria-label="اسم الميناء الجديد" placeholder="مثلاً Ningbo"
+                  onChange={e=>setQuickName(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();void createReference();}}}/>
+                <div><button type="button" disabled={quickSaving} onClick={()=>void createReference()}>
+                  {quickSaving?"جارٍ الحفظ...":"حفظ واختيار"}</button>
+                  <button type="button" disabled={quickSaving} onClick={()=>setQuickReference(null)}>إلغاء</button></div>
+              </div>}
           </div>
         </section>
 

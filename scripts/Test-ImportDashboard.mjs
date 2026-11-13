@@ -41,7 +41,7 @@ function client(){
   return {request,login};
 }
 const path="/api/dashboard";
-const cats=["orders","finance","logistics","documents","companies","tracking","security","subscription"];
+const cats=["orders","finance","logistics","documents","companies","ports","tracking","security","subscription"];
 try {
   const guest=client();
   assert.equal((await guest.request(path+"/overview?days=30")).status,401);
@@ -105,7 +105,7 @@ try {
       assert.equal(r.status,200,slug+" / "+category+"="+r.status);
       assert(r.data.items.every(x=>x.category===category));
     }
-    pass(slug+" all eight activity category filters return scoped results");
+    pass(slug+" all nine activity category filters return scoped results");
     const invalid=[
       path+"/overview?days=-1",
       path+"/overview?days=11",

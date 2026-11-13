@@ -15,6 +15,8 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
     public DbSet<TenantInvitation> TenantInvitations => Set<TenantInvitation>();
     public DbSet<TenantCompany> Companies => Set<TenantCompany>();
     public DbSet<TenantCompanyAudit> CompanyAudits => Set<TenantCompanyAudit>();
+    public DbSet<TenantPort> Ports => Set<TenantPort>();
+    public DbSet<TenantPortAudit> PortAudits => Set<TenantPortAudit>();
     public DbSet<SecurityAudit> SecurityAudits => Set<SecurityAudit>();
     public DbSet<PurchaseOrder> Orders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderItem> OrderItems => Set<PurchaseOrderItem>();
@@ -154,6 +156,28 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
             e.Property(x => x.TypeSnapshot).HasMaxLength(30);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(x => x.TenantId == CurrentTenantId);
+        });
+        model.Entity<TenantPort>(e =>
+        {
+            e.ToTable("TenantPorts");
+            e.HasIndex(x => new { x.TenantId, x.NormalizedName })
+                .IsUnique().HasFilter("\"IsDeleted\" = false");
+            e.Property(x => x.Name).HasMaxLength(160);
+            e.Property(x => x.NormalizedName).HasMaxLength(160);
+            e.Property(x => x.Country).HasMaxLength(100);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasQueryFilter(x => x.TenantId == CurrentTenantId && !x.IsDeleted);
+        });
+        model.Entity<TenantPortAudit>(e =>
+        {
+            e.ToTable("TenantPortAudits");
+            e.HasIndex(x => new { x.TenantId, x.OccurredAtUtc, x.Id });
+            e.Property(x => x.Action).HasMaxLength(24);
+            e.Property(x => x.NameSnapshot).HasMaxLength(160);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasQueryFilter(x => x.TenantId == CurrentTenantId);
         });
         model.Entity<TenantInvitation>(e =>

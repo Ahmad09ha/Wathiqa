@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpenText, Building2, LogOut, Menu, ShieldCheck, X, LayoutGrid, Users, ChevronLeft, ClipboardList, Ship } from "lucide-react";
+import { BookOpenText, Building2, LogOut, Menu, ShieldCheck, X, LayoutGrid, Users, ChevronLeft, ClipboardList, Ship, Anchor } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { useToast } from "@/components/ToastProvider";
 import { CurrentImportUser, ImportApiError, currentImportUser, importApi, resetImportCsrf } from "@/lib/importApi";
@@ -11,7 +11,7 @@ import { CurrentImportUser, ImportApiError, currentImportUser, importApi, resetI
 export default function ImportShell({
   section, title, description, children
 }: {
-  section: "home" | "orders" | "companies" | "team" | "operations";
+  section: "home" | "orders" | "companies" | "reference" | "team" | "operations";
   title: string;
   description: string;
   children: (user: CurrentImportUser) => React.ReactNode;
@@ -69,6 +69,7 @@ export default function ImportShell({
   const navigation = [
     {name:"نظرة عامة", href:"/import", id:"home", icon:LayoutGrid},
     {name:"طلبات الشراء", href:"/import/orders", id:"orders", icon:ClipboardList},
+    {name:"بيانات طلبات الشراء", href:"/import/reference-data", id:"reference", icon:Anchor},
     {name:"متابعة العمليات", href:"/import/operations", id:"operations", icon:Ship},
     {name:"الجهات والشركات", href:"/import/companies", id:"companies", icon:Building2},
     ...(user.role === "Admin" ? [{name:"الموظفون والصلاحيات", href:"/import/team", id:"team", icon:Users}] : [])

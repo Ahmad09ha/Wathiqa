@@ -21,12 +21,13 @@ const categories:{value:ActivityCategory;label:string}[]=[
   {value:"all",label:"جميع الأحداث"},{value:"orders",label:"الطلبات"},
   {value:"finance",label:"الدفوعات"},{value:"logistics",label:"الشحن والتخليص"},
   {value:"tracking",label:"التتبع"},{value:"documents",label:"المستندات"},
-  {value:"companies",label:"الشركات"},{value:"security",label:"الفريق والصلاحيات"},
+  {value:"companies",label:"الشركات"},{value:"ports",label:"الموانئ"},
+  {value:"security",label:"الفريق والصلاحيات"},
   {value:"subscription",label:"الاشتراكات"}
 ];
 const catIcons:Record<ActivityCategory,LucideIcon>={
   all:Activity,orders:FileText,finance:Wallet,logistics:Ship,tracking:TrendingUp,
-  documents:FileText,companies:Building2,security:Users,subscription:Landmark
+  documents:FileText,companies:Building2,ports:Ship,security:Users,subscription:Landmark
 };
 const whole=new Intl.NumberFormat("ar-SY-u-nu-latn",{maximumFractionDigits:0});
 const precise=new Intl.NumberFormat("ar-SY-u-nu-latn",{maximumFractionDigits:2});

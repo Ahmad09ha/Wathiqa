@@ -328,6 +328,12 @@ public static class DashboardApi
             Category = "companies", Action = x.Action,
             OrderId = (Guid?)null, ShipmentId = (Guid?)null, TargetId = x.CompanyId
         });
+        var portHistory = db.PortAudits.AsNoTracking().Select(x => new ActivityRow
+        {
+            Id = x.Id, AtUtc = x.OccurredAtUtc, ActorId = x.ActorId,
+            Category = "ports", Action = x.Action,
+            OrderId = (Guid?)null, ShipmentId = (Guid?)null, TargetId = x.PortId
+        });
         var trackingRegistered = db.TrackingReferences.AsNoTracking().Select(x => new ActivityRow
         {
             Id = x.Id, AtUtc = x.CreatedAtUtc, ActorId = x.CreatedById,
@@ -344,7 +350,7 @@ public static class DashboardApi
                 TargetId = x.Id
             });
         var all = orders.Concat(payments).Concat(logistics).Concat(docs)
-            .Concat(companies).Concat(companyHistory)
+            .Concat(companies).Concat(companyHistory).Concat(portHistory)
             .Concat(trackingRegistered).Concat(trackingSynced);
         if (!administrator) return all;
         var security = db.SecurityAudits.AsNoTracking().Select(x => new ActivityRow
@@ -373,7 +379,7 @@ public static class DashboardApi
         var take = pageSize ?? 20;
         var filter = category?.Trim().ToLowerInvariant() ?? "all";
         var allowed = new[] { "all", "orders", "finance", "logistics",
-            "documents", "companies", "tracking", "security", "subscription" };
+            "documents", "companies", "ports", "tracking", "security", "subscription" };
         if (currentPage is < 1 or > 100000 || take is < 1 or > 50 ||
             !PeriodValid(days) || !allowed.Contains(filter))
             return Results.BadRequest(new { error = "invalid_filter" });
@@ -433,6 +439,12 @@ public static class DashboardApi
             .Where(x => companyAuditIds.Contains(x.Id))
             .Select(x => new { x.Id, x.NameSnapshot })
             .ToDictionaryAsync(x => x.Id, x => x.NameSnapshot, ct);
+        var portAuditIds = rows.Where(x => x.Category == "ports")
+            .Select(x => x.Id).Distinct().ToArray();
+        var portAuditNames = await db.PortAudits.AsNoTracking()
+            .Where(x => portAuditIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.NameSnapshot })
+            .ToDictionaryAsync(x => x.Id, x => x.NameSnapshot, ct);
         var items = rows.Select(x =>
         {
             var orderId = x.OrderId;
@@ -446,6 +458,8 @@ public static class DashboardApi
                 companyAuditNames.TryGetValue(x.Id, out label);
             else if (x.Category == "companies" && x.TargetId.HasValue)
                 companyNames.TryGetValue(x.TargetId.Value, out label);
+            else if (x.Category == "ports")
+                portAuditNames.TryGetValue(x.Id, out label);
             else if (x.ShipmentId.HasValue &&
                 shipmentNames.TryGetValue(x.ShipmentId.Value, out var bill))
                 label = bill.BlNumber;
@@ -468,6 +482,7 @@ public static class DashboardApi
                 Url = x.Category switch
                 {
                     "companies" => "/import/companies",
+                    "ports" => "/import/reference-data",
                     "security" => administrator ? "/import/team" : null,
                     "subscription" => "/import",
                     _ => orderId.HasValue
@@ -512,6 +527,9 @@ public static class DashboardApi
             ("companies", "LegacyCreated") => "إضافة جهة تجارية (سجل سابق)",
             ("companies", "Updated") => "تعديل بيانات جهة تجارية",
             ("companies", "Deleted") => "حذف جهة تجارية",
+            ("ports", "Created") => "إضافة ميناء إلى الدليل",
+            ("ports", "Updated") => "تعديل بيانات ميناء",
+            ("ports", "Deleted") => "حذف ميناء من الدليل",
             ("tracking", "Registered") => "تسجيل مرجع تتبع",
             ("tracking", "LastSynced") => "آخر تحديث للتتبع",
             ("security", "CanManagePayments") => "تعديل صلاحيات الدفوعات",
@@ -526,6 +544,7 @@ public static class DashboardApi
                 "subscription" => "تحديث في الاشتراك",
                 "tracking" => "نشاط التتبع",
                 "companies" => "نشاط الجهات التجارية",
+                "ports" => "نشاط دليل الموانئ",
                 _ => "نشاط داخل الشركة"
             }
         };

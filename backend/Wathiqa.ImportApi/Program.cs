@@ -345,6 +345,7 @@ AuthApi.Map(app);
 PlatformApi.Map(app);
 ManualSubscriptionsApi.Map(app);
 CompanyApi.Map(app);
+TenantPortsApi.Map(app);
 OrderApi.Map(app);
 PaymentApi.Map(app);
 LogisticsApi.Map(app);

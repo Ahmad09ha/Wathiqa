@@ -2,7 +2,7 @@
 
 export type DashboardPeriod = 0|7|30|90|365;
 export type ActivityCategory = "all"|"orders"|"finance"|"logistics"|"documents"|
-  "companies"|"tracking"|"security"|"subscription";
+  "companies"|"ports"|"tracking"|"security"|"subscription";
 
 export interface DashboardOverview {
   asOfUtc:string;periodDays:number;

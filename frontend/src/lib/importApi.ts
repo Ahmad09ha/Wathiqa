@@ -30,6 +30,18 @@ export interface ImportCompany {
   defaultCurrency: string;
   notes: string;
 }
+export interface TenantPort {
+  id: string | null;
+  name: string;
+  country: string;
+  source: "Catalog" | "History";
+  createdAtUtc: string | null;
+}
+export const fetchTenantPorts = () => importApi<TenantPort[]>("/api/ports");
+export const createTenantPort = (name: string, country = "") =>
+  importApi<TenantPort>("/api/ports", {
+    method:"POST",body:JSON.stringify({name,country})
+  });
 export interface ImportCompaniesPage {
   page: number;
   pageSize: number;
@@ -179,6 +191,8 @@ const ArabicErrors: Record<string, string> = {
   invalid_user_or_password: "بيانات الحساب أو كلمة المرور غير صالحة.",
   invalid_company_name_or_type: "راجع اسم الشركة ونوعها.",
   invalid_company_details: "راجع بيانات الجهة، البريد الإلكتروني، العملة والأطوال المسموحة للحقول.",
+  invalid_port_details: "اسم الميناء مطلوب (2 إلى 160 حرفاً)، والدولة اختيارية حتى 100 حرف.",
+  port_already_exists: "هذا الميناء موجود مسبقاً في دليل شركتك. اختره من القائمة.",
   company_in_use: "هذه الجهة مرتبطة بطلبات شراء أو شحنات أو تخليص نشط. لا يمكن تغيير نوعها أو حذفها قبل معالجة هذه الارتباطات.",
   invitation_already_pending: "توجد دعوة سارية لهذا البريد.",
   email_already_registered: "البريد الإلكتروني مستخدم بالفعل.",
