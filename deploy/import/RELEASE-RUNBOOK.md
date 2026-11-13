@@ -26,22 +26,20 @@
 8. On an **independent staging host**, run `scripts/vps/restore-rehearsal.sh` with explicit snapshot ID/acknowledgment, protected PFX recovery password, staging PostgreSQL credentials, and original backup path values for source location verification. Check restored DB, all document SHA-256, XML keys, decryptable PFX; start a restored staging API to prove protected cookie continuity.
 9. Run 5 anonymized REAL import orders against staging and answer the agreed five business questions (supplier balances by currency, delivered-unpaid, at-sea containers, missing B/L/docs, customs status). Also verify SuperAdmin cannot open any merchant bank evidence or Orders, and tenant Admin cannot reach platform routes. Obtain owner/merchant acceptance, monitoring alerts, **independent platform owner credential recovery/rotation procedure**, rollback/forward-fix procedure and release commit SHA before any live production launch.
 
-## Import schema upgrades after initial installation
+## Automatic Import schema upgrades on every deployment
 
-Normal API startup **does not** run EF migrations. For each later Import API release, inspect pending migrations before switching production traffic to a binary that requires new columns.
+The Import API **automatically runs EF Core migrations before opening its HTTP listener** on every non-Development startup. This is enabled by default and explicitly configured as `WATHIQA_IMPORT_AUTO_MIGRATE=true` in `deploy/import/compose.yml`. No manual migration command is required for ordinary deploy/redeploy/restart.
 
-1. Verify the actual Dokploy Compose project name, current API image and a **restorable** database backup. Never create a second Compose project or reset secrets or existing PostgreSQL volumes.
-2. Use the matching updated API image, existing Compose project and correct environment:
+1. **Before pushing/deploying**, review every new EF migration and confirm an off-host, restorable production database backup already exists. This application-startup mechanism does **not** create a backup for you. An unsafe migration (e.g. DropColumn, data rewrite, incompatible rolling-deploy change) remains unsafe even though EF can apply it.
+2. Deploy the **same existing Dokploy Compose project**, API image and PostgreSQL volume. PostgreSQL must already be healthy. The API validates the exact Import DB name `wathiqa_import`, checks for untracked model changes, reads pending migrations, and calls `Database.MigrateAsync()`. EF Core 10 serializes concurrent migration attempts with its database lock; EF manages its own transactions.
+3. A failed migration or mismatched database **aborts API startup**. The Docker API health check becomes ready only after the schema is current, and the new web container waits for healthy API. Watch API startup logs; troubleshoot the actual migration exception rather than disabling the startup gate.
+4. After deploy, verify `/import-api/api/health`, authenticated `/platform/plans`, the tenant reference-data tab, the subscription pages, and data persistence across an API restart. Production deployment and its outcomes require real VPS observation.
 
-   docker compose --env-file deploy/import/.env -f deploy/import/compose.yml -p YOUR_EXISTING_DOKPLOY_COMPOSE_PROJECT run --rm --no-deps api --import-schema-status
+**Controlled manual/maintenance mode:** set `WATHIQA_IMPORT_AUTO_MIGRATE=false` in the existing Compose project's environment, apply migrations through the retained `--migrate-import-schema` operator CLI, then restart. With auto-migration disabled, an API that still has pending migrations **fails to start** rather than serving outdated data. Read-only `--import-schema-status` remains available.
 
-3. Review all pending migration IDs. After backup verification and change approval, apply the migrations explicitly:
+**Risk acceptance:** Automatic startup migrations simplify deployments but require the running API database principal to have DDL permissions and may cause temporary downtime or incompatibility with an older app version during rollout. Schedule backups and review backward compatibility before production release. No seeds, passwords, roles, tenant data or subscriptions are reset automatically. Never deploy the legacy root `docker-compose.yml` or substitute a seeder for migrations.
 
-   docker compose --env-file deploy/import/.env -f deploy/import/compose.yml -p YOUR_EXISTING_DOKPLOY_COMPOSE_PROJECT run --rm --no-deps -e WATHIQA_MIGRATION_TARGET_DB=wathiqa_import -e WATHIQA_MIGRATION_BACKUP_VERIFIED=yes api --migrate-import-schema
-
-4. Re-run the status command and require zero pending migrations plus the expected columns. Then verify the authenticated site workflow.
-
-These operator commands do **not** seed merchants or rotate passwords. Do not substitute a SuperAdmin seed command, edit production tables manually, or mistake a successful database-connectivity check for schema readiness. See docs/implementation/INCIDENT-PLATFORM-PLANS-SCHEMA-REPAIR.md.
+**Local verification (2026-11-14):** `scripts/Test-ImportStartupAutoMigrations.ps1` booted a disposable PostgreSQL 18 cluster (not the existing dev or production DB), auto-applied all 17 checked-in EF migrations, proved the new DB contained no seeded users/tenants, then restarted the API with zero migrations pending. The disposable cluster was removed after testing. The .NET 10 build and existing tenant Dashboard regression (16/16) also passed. A real Dokploy image build and production execution have **not** been performed in this change.
 
 ## Invariants and stop rules
 - Never transfer the 5,000 overpayment to a different Order. Approved P-03/A = audited void and linked replacement; real return = separate event. Approved P-02/B = Admin exception close with outstanding money still visible.

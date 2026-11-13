@@ -6,7 +6,7 @@
 - The browser reports "تعذّر تحميل الباقات" and shows the generic server-error message.
 - On 2026-11-14, unauthenticated public checks returned HTTP 200 for `/import-api/api/health` and HTTP 401 for `/import-api/api/platform/plans` (expected without SuperAdmin session). These do **not** test the authenticated SELECT or prove database migration status.
 - The source query in `ManualSubscriptionsApi.ListPlans` selects `PlatformSubscriptionPlans.MaxTrackedBills` introduced by EF migration `20261112103205_ShipsGoTrackingPlansAndUsage`.
-- The ordinary application start does not run `db.Database.MigrateAsync()`. Migrations are currently applied only by explicit seed/operator commands.
+- At the time of the incident, API startup did not run `db.Database.MigrateAsync()`. This was superseded by automatic migrations on non-Development API startup; see `deploy/import/RELEASE-RUNBOOK.md`.
 - **Leading hypothesis:** the production PostgreSQL schema is older than the deployed API and lacks the new column. A definitive diagnosis requires privileged database migration history or server exception logs, neither of which is available through the currently connected Rider workspace. Do not mistake public API health for schema readiness.
 
 ## Application fix
@@ -15,10 +15,12 @@
 - The Arabic plans screen shows the actionable error and a retry control. It does **not** display "no plans yet" following a failed request.
 - `ImportSchemaCli` introduces two separate operator-only CLI commands. Neither is an HTTP endpoint, and neither seeds merchants, edits subscriptions or rotates a SuperAdmin password:
   - `--import-schema-status`: read-only list of pending migrations plus presence check for `MaxTrackedBills`.
-  - `--migrate-import-schema`: applies EF migrations with explicit target database acknowledgement and production-backup acknowledgement. Normal API startup behavior remains unchanged.
+  - `--migrate-import-schema`: applies EF migrations with explicit target database acknowledgement and production-backup acknowledgement. Current production API startup also auto-applies pending migrations.
 - Production schema maintenance is restricted to `wathiqa_import`; development maintenance is restricted to a local `wathiqa_import_dev` connection. The command refuses the legacy editor databases.
 
-## Remediation on the existing Dokploy stack
+## Historical manual remediation on the existing Dokploy stack
+
+Current default: ordinary API deployment auto-applies pending migrations before accepting HTTP traffic. The manual steps below remain an explicit opt-out and incident recovery alternative.
 
 The following must be performed **on the VPS or Dokploy host**, using the **same Compose project, PostgreSQL volume, and API image** as the running production instance. Never create a second stack and never run commands against a local dev database when repairing production.
 

@@ -1,4 +1,4 @@
-﻿# نشر وثيقة على Hostinger VPS باستخدام Dokploy و GitHub
+# نشر وثيقة على Hostinger VPS باستخدام Dokploy و GitHub
 
 ## أهم قرار: استخدم Compose وليس Dockerfile واحداً
 المشروع الحالي يضم Frontend (Next.js 16) وImport API (.NET 10) وPostgreSQL 18، ويحتاج مخزناً دائماً خاصاً للمستندات ومفاتيح الجلسات. لدى كل من API وWeb ملف Dockerfile منفصل:
@@ -68,6 +68,8 @@ docker compose --env-file deploy/import/.env -f deploy/import/compose.yml run --
 - `https://YOUR-DOMAIN/import/login`
 - `https://YOUR-DOMAIN/platform/login`
 - `https://YOUR-DOMAIN/import-api/api/health`
+
+**تحديث قاعدة البيانات التلقائي:** عند كل Deploy للـ Import API يتم تطبيق EF Migrations المعلّقة تلقائياً قبل فتح السيرفر لاستقبال الطلبات. هذا مفعّل افتراضياً عبر `WATHIQA_IMPORT_AUTO_MIGRATE=true`. الواجهة تنتظر نجاح فحص جاهزية API؛ وفشل Migration يمنع تشغيل API على مخطط قديم. لا يتم إنشاء حسابات أو تغيير كلمات مرور تلقائياً، ولا يتم إنشاء نسخة احتياطية تلقائياً. راجع `RELEASE-RUNBOOK.md` قبل نشر Migrations حساسة.
 
 لا تستعمل دومين الإنتاج قبل اكتمال التحقق.
 

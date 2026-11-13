@@ -57,6 +57,9 @@ services:
       WATHIQA_DB_HOST: postgres
       WATHIQA_DB_NAME: wathiqa_import
       WATHIQA_DB_USER: wathiqa_import
+      # Every API deploy applies pending Import EF migrations before the HTTP
+      # listener starts. CLI seed commands are still explicit, not automatic.
+      WATHIQA_IMPORT_AUTO_MIGRATE: "${WATHIQA_IMPORT_AUTO_MIGRATE:-true}"
       ReverseProxy__KnownProxies: ${WATHIQA_WEB_IP:?Set the exact frontend container IP}
       Documents__PrivateRoot: /var/lib/wathiqa/documents
       Documents__ClamScanExecutable: /usr/bin/clamscan
@@ -69,13 +72,13 @@ services:
     networks: [import_private]
     expose: ["8080"]
     healthcheck:
-      # The first fresh install remains unhealthy until the one-time seed job
-      # applies EF migrations. Keep web startup independent of this gate.
+      # The API starts listening only AFTER all pending migrations succeed.
+      # Failed migration => no API traffic; docker restart policy retries.
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/api/health"]
       interval: 15s
       timeout: 5s
       retries: 8
-      start_period: 90s
+      start_period: 180s
 
   web:
     build:
@@ -84,7 +87,8 @@ services:
       args:
         IMPORT_API_INTERNAL_URL: http://api:8080
     restart: unless-stopped
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
     environment:
       IMPORT_API_INTERNAL_URL: http://api:8080
     expose: ["3000"]

@@ -295,6 +295,13 @@ if (args.Contains("--seed-superadmin", StringComparer.OrdinalIgnoreCase))
     await PlatformSuperAdminSeeder.RunAsync(app.Services);
     return;
 }
+
+// The Import API never opens an HTTP listener against an outdated schema.
+// Production/Dokploy starts auto-apply pending EF migrations by default;
+// explicit operator CLI commands above continue to be separate and unchanged.
+await ImportStartupMigrations.ApplyAsync(
+    app.Services, app.Configuration, app.Environment, app.Lifetime.ApplicationStopping);
+
 app.UseAuthentication();
 
 // Cross-site request forgery protection also covers JSON, PUT and DELETE.
