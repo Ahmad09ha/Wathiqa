@@ -315,6 +315,7 @@ const ArabicErrors: Record<string, string> = {
   ,tracking_provider_invalid_reference: "رقم البوليصة أو شركة الشحن غير مقبولين لدى ShipsGo."
   ,tracking_provider_ambiguous_registration: "ShipsGo استلم طلباً لكن رقم تأكيده غير واضح؛ لن نكرره كي لا يتم الخصم مرتين."
   ,tracking_bl_change_requires_reconciliation: "لا يمكن تغيير رقم البوليصة بعد تفعيل التتبع المدفوع. اطلب مراجعة التتبع من مسؤول المنصة."
+  ,platform_schema_upgrade_required: "قاعدة بيانات المنصة لم تُحدَّث بعد لإضافة حدود تتبّع البوالص. يلزم تطبيق ترحيلات قاعدة البيانات على الخادم من مسؤول النشر."
   ,tracking_invalid_carrier: "رمز شركة الشحن يجب أن يكون من حرفين إلى 12 حرفاً أو رقماً."
   ,tracking_reference_conflict: "رقم التتبع مسجل بالفعل. أعد تحميل البيانات."
   ,tracking_not_configured: "خدمة التتبع البحري غير مفعّلة على السيرفر."

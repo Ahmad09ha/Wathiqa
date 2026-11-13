@@ -268,6 +268,15 @@ if (!app.Environment.IsDevelopment())
         await next();
     });
 }
+// Production schema updates are never automatic on normal HTTP startup.
+// These separate operator-only commands neither seed nor modify user accounts.
+if (args.Contains("--import-schema-status", StringComparer.OrdinalIgnoreCase) ||
+    args.Contains("--migrate-import-schema", StringComparer.OrdinalIgnoreCase))
+{
+    Environment.ExitCode = await ImportSchemaCli.RunAsync(app.Services,
+        args.Contains("--migrate-import-schema", StringComparer.OrdinalIgnoreCase));
+    return;
+}
 if (args.Contains("--bootstrap", StringComparer.OrdinalIgnoreCase))
 {
     await Bootstrap.RunAsync(app.Services);

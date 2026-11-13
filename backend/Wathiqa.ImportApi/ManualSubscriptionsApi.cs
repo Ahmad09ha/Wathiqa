@@ -35,16 +35,28 @@ public static class ManualSubscriptionsApi
 
     private static async Task<IResult> ListPlans(ImportDb db)
     {
-        var plans = await db.PlatformSubscriptionPlans.AsNoTracking()
-            .OrderByDescending(x => x.IsActive).ThenBy(x => x.CreatedAtUtc)
-            .ThenBy(x => x.Code)
-            .Select(x => new
-            {
-                x.Id, x.Code, x.Name, x.DurationMonths, x.MaxTrackedBills,
-                x.IsActive, x.CreatedAtUtc,
-                TenantCount = db.TenantSubscriptions.Count(s => s.PlanId == x.Id && s.EndedAtUtc == null)
-            }).ToListAsync();
-        return Results.Ok(plans);
+        try
+        {
+            var plans = await db.PlatformSubscriptionPlans.AsNoTracking()
+                .OrderByDescending(x => x.IsActive).ThenBy(x => x.CreatedAtUtc)
+                .ThenBy(x => x.Code)
+                .Select(x => new
+                {
+                    x.Id, x.Code, x.Name, x.DurationMonths, x.MaxTrackedBills,
+                    x.IsActive, x.CreatedAtUtc,
+                    TenantCount = db.TenantSubscriptions.Count(s => s.PlanId == x.Id && s.EndedAtUtc == null)
+                }).ToListAsync();
+            return Results.Ok(plans);
+        }
+        catch (PostgresException ex) when (
+            ex.SqlState == PostgresErrorCodes.UndefinedColumn &&
+            ex.MessageText.Contains("MaxTrackedBills", StringComparison.Ordinal))
+        {
+            // An old production database must be upgraded, never silently
+            // shown as an empty plan catalogue or initialized from the UI.
+            return Results.Json(new { error = "platform_schema_upgrade_required" },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
     }
 
     private static async Task<IResult> CreatePlan(ManualPlanCreateInput input,

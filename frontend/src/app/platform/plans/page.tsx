@@ -10,6 +10,7 @@ function PlansManagement(){
   const {notify}=useToast();
   const [plans,setPlans]=useState<ManualPlan[]>([]);
   const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);
+  const [loadError,setLoadError]=useState("");
   const [open,setOpen]=useState(false);
   const [name,setName]=useState("");const [code,setCode]=useState("");
   const [months,setMonths]=useState("3");const [reason,setReason]=useState("");
@@ -17,8 +18,13 @@ function PlansManagement(){
   const [switchPlan,setSwitchPlan]=useState<ManualPlan|null>(null);
   const [switchReason,setSwitchReason]=useState("");
   const load=useCallback(async()=>{
-    try{setPlans(await getManualPlans());}
-    catch(error){notify({kind:"error",title:"تعذّر تحميل الباقات",description:(error as Error).message});}
+    setLoading(true);
+    try{setPlans(await getManualPlans());setLoadError("");}
+    catch(error){
+      setPlans([]);
+      setLoadError((error as Error).message);
+      notify({kind:"error",title:"تعذّر تحميل الباقات",description:(error as Error).message});
+    }
     finally{setLoading(false);}
   },[notify]);useEffect(()=>{void load();},[load]);
   async function create(e:FormEvent){
@@ -83,7 +89,11 @@ function PlansManagement(){
           {plan.isActive?"إيقاف الباقة":"إعادة إتاحتها"}</button></td>
       </tr>)}</tbody></table></div>
       {loading&&<p className="pc-empty">جارٍ تحميل الباقات...</p>}
-      {!loading&&!plans.length&&<p className="pc-empty">لا يوجد باقات بعد. أنشئ أول باقة لتبدأ بإدارة الاشتراكات يدوياً.</p>}
+      {!loading&&loadError&&<div className="pc-note" role="alert">
+        <p>{loadError} <button type="button" className="pc-secondary"
+          onClick={()=>void load()}>إعادة المحاولة</button></p>
+      </div>}
+      {!loading&&!loadError&&!plans.length&&<p className="pc-empty">لا يوجد باقات بعد. أنشئ أول باقة لتبدأ بإدارة الاشتراكات يدوياً.</p>}
       {switchPlan&&<form className="pc-inline-confirm" onSubmit={e=>void changeActive(e)}>
         <strong>{switchPlan.isActive?"إيقاف إتاحة":"إعادة إتاحة"} باقة {switchPlan.name}</strong>
         <label>سبب القرار<input required minLength={8} maxLength={1000} value={switchReason}

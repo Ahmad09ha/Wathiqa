@@ -26,6 +26,23 @@
 8. On an **independent staging host**, run `scripts/vps/restore-rehearsal.sh` with explicit snapshot ID/acknowledgment, protected PFX recovery password, staging PostgreSQL credentials, and original backup path values for source location verification. Check restored DB, all document SHA-256, XML keys, decryptable PFX; start a restored staging API to prove protected cookie continuity.
 9. Run 5 anonymized REAL import orders against staging and answer the agreed five business questions (supplier balances by currency, delivered-unpaid, at-sea containers, missing B/L/docs, customs status). Also verify SuperAdmin cannot open any merchant bank evidence or Orders, and tenant Admin cannot reach platform routes. Obtain owner/merchant acceptance, monitoring alerts, **independent platform owner credential recovery/rotation procedure**, rollback/forward-fix procedure and release commit SHA before any live production launch.
 
+## Import schema upgrades after initial installation
+
+Normal API startup **does not** run EF migrations. For each later Import API release, inspect pending migrations before switching production traffic to a binary that requires new columns.
+
+1. Verify the actual Dokploy Compose project name, current API image and a **restorable** database backup. Never create a second Compose project or reset secrets or existing PostgreSQL volumes.
+2. Use the matching updated API image, existing Compose project and correct environment:
+
+   docker compose --env-file deploy/import/.env -f deploy/import/compose.yml -p YOUR_EXISTING_DOKPLOY_COMPOSE_PROJECT run --rm --no-deps api --import-schema-status
+
+3. Review all pending migration IDs. After backup verification and change approval, apply the migrations explicitly:
+
+   docker compose --env-file deploy/import/.env -f deploy/import/compose.yml -p YOUR_EXISTING_DOKPLOY_COMPOSE_PROJECT run --rm --no-deps -e WATHIQA_MIGRATION_TARGET_DB=wathiqa_import -e WATHIQA_MIGRATION_BACKUP_VERIFIED=yes api --migrate-import-schema
+
+4. Re-run the status command and require zero pending migrations plus the expected columns. Then verify the authenticated site workflow.
+
+These operator commands do **not** seed merchants or rotate passwords. Do not substitute a SuperAdmin seed command, edit production tables manually, or mistake a successful database-connectivity check for schema readiness. See docs/implementation/INCIDENT-PLATFORM-PLANS-SCHEMA-REPAIR.md.
+
 ## Invariants and stop rules
 - Never transfer the 5,000 overpayment to a different Order. Approved P-03/A = audited void and linked replacement; real return = separate event. Approved P-02/B = Admin exception close with outstanding money still visible.
 - Never blindly downgrade the WP-05 ledger migration; that risks losing payment history. Never restore an older database over a live DB that has accepted newer transfers.
