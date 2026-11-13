@@ -123,6 +123,8 @@ a.im-feature:hover {transform:translateY(-2px);border-color:#bcd0bf;}
 .im-login-card > p {font-size:12px;color:#839485;margin:0 0 23px;}
 .im-login-card label {font-size:11px;font-weight:600;color:#586e60;margin-bottom:7px;}
 .im-login-card input {margin-bottom:18px;min-height:47px;}
+.im-login-card .w-password-field{margin-bottom:18px}
+.im-login-card .w-password-field input{margin-bottom:0}
 .im-login-submit {min-height:46px;width:100%;justify-content:space-between;margin-top:4px;}
 .im-login-hint {text-align:center;margin-top:22px;padding-top:20px;border-top:1px solid #edf0ea;color:#829487;font-size:11px;}
 .im-login-legal {max-width:1250px;margin:0 auto;color:#89988c;font-size:10px;width:100%;}

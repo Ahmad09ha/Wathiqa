@@ -4,6 +4,7 @@ import {FormEvent,useCallback,useEffect,useState} from "react";
 import Link from "next/link";
 import {ArrowUpLeft,Check,ClipboardCopy,Plus,Search,ShieldCheck} from "lucide-react";
 import PlatformShell from "@/components/PlatformShell";
+import PasswordField from "@/components/PasswordField";
 import {useToast} from "@/components/ToastProvider";
 import {AccessMode,getPlatformTenants,PlatformPage,platformApi,PlatformTenant,TenantCreation} from "@/lib/platformApi";
 
@@ -64,9 +65,10 @@ function TenantDirectory(){
           onChange={e=>setSlug(e.target.value.toLowerCase())} placeholder="merchant-company"/></label>
         <label>بريد مدير الشركة<input required dir="ltr" type="email" value={email} maxLength={254}
           onChange={e=>setEmail(e.target.value)} placeholder="admin@company.com"/></label>
-        <label>كلمة مرور المدير<input required type="password" dir="ltr" minLength={12} maxLength={256}
+        <div className="pc-password-entry"><label htmlFor="tenant-admin-password">كلمة مرور المدير</label>
+          <PasswordField id="tenant-admin-password" label="كلمة مرور المدير" required dir="ltr" minLength={12} maxLength={256}
           autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}
-          placeholder="12+ characters, Aa 9 !"/></label>
+          placeholder="12+ characters, Aa 9 !"/></div>
         <p className="pc-field-wide pc-muted">12 محرفاً على الأقل، مع حرف كبير وحرف صغير ورقم ورمز خاص. سيتم إظهارها مرة واحدة بعد الإنشاء لتسليمها للتاجر بأمان.</p>
         <label>نوع حق الوصول<select value={mode} onChange={e=>setMode(e.target.value as AccessMode)}>
           <option value="Expires">محدد بتاريخ انتهاء</option><option value="Unlimited">بلا انتهاء</option>

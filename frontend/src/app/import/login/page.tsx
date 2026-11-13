@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LockKeyhole, ArrowLeft, ShieldCheck } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import PasswordField from "@/components/PasswordField";
 import { useToast } from "@/components/ToastProvider";
 import { importApi, resetImportCsrf } from "@/lib/importApi";
 
@@ -53,7 +54,7 @@ export default function ImportLogin() {
           <input id="import-email" type="email" dir="ltr" autoComplete="username" required maxLength={254}
             placeholder="name@company.com" value={email} onChange={event => setEmail(event.target.value)}/>
           <label htmlFor="import-password">كلمة المرور</label>
-          <input id="import-password" type="password" dir="ltr" autoComplete="current-password" required
+          <PasswordField id="import-password" label="كلمة المرور" dir="ltr" autoComplete="current-password" required
             placeholder="••••••••••••" value={password} onChange={event => setPassword(event.target.value)}/>
           <button type="submit" className="btn primary im-login-submit" disabled={pending}>
             {pending ? "جارٍ التحقق..." : "الدخول إلى وثيقة"} <ArrowLeft size={18}/>

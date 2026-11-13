@@ -33,6 +33,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   outline: 3px solid #abccba;
   outline-offset: 3px;
 }
+.w-password-field{position:relative;display:block;width:100%;min-width:0}
+.w-password-field input.w-password-input{width:100%;padding-inline-end:53px}
+.w-password-toggle{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:39px;height:39px;border:0;border-radius:6px;background:transparent;color:#718475;cursor:pointer}
+.w-password-toggle:hover{background:#edf3ef;color:#285940}
+.w-password-toggle:focus-visible{outline:3px solid #abccba;outline-offset:1px}
 ::selection { background: #c5d9c6; color: #15332a; }
 .layout { min-height: 100vh; padding-inline-start: var(--sidebar-width); }
 .sidebar {

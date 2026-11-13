@@ -5,6 +5,7 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {ArrowLeft,LockKeyhole,ShieldCheck} from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import PasswordField from "@/components/PasswordField";
 import {useToast} from "@/components/ToastProvider";
 import {ImportApiError,platformApi} from "@/lib/platformApi";
 import {resetImportCsrf} from "@/lib/importApi";
@@ -44,7 +45,7 @@ export default function PlatformLogin(){
       <input id="platform-email" required dir="ltr" type="email" maxLength={254} autoComplete="username"
         placeholder="owner@example.com" value={email} onChange={e=>setEmail(e.target.value)}/>
       <label htmlFor="platform-password">كلمة المرور</label>
-      <input id="platform-password" required dir="ltr" type="password" autoComplete="current-password"
+      <PasswordField id="platform-password" label="كلمة المرور" required dir="ltr" autoComplete="current-password"
         placeholder="••••••••••••••••" value={password} onChange={e=>setPassword(e.target.value)}/>
       <button type="submit" className="pc-primary" disabled={busy}>
         {busy?"جارٍ التحقق من الحساب...":"الدخول إلى إدارة المنصة"}<ArrowLeft size={18}/>

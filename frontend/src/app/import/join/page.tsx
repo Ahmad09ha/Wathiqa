@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, KeyRound, UserRoundPlus } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import PasswordField from "@/components/PasswordField";
 import { useToast } from "@/components/ToastProvider";
 import { importApi, ImportApiError, resetImportCsrf } from "@/lib/importApi";
 
@@ -80,10 +81,10 @@ export default function JoinWathiqa() {
         <input id="invite-display" dir="auto" required minLength={2} maxLength={160}
           value={name} onChange={e=>setName(e.target.value)} placeholder="الاسم الكامل"/>
         <label htmlFor="invite-password">كلمة مرور جديدة</label>
-        <input id="invite-password" dir="ltr" type="password" required minLength={12}
+        <PasswordField id="invite-password" label="كلمة المرور الجديدة" dir="ltr" required minLength={12}
           autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/>
         <label htmlFor="invite-confirm">تأكيد كلمة المرور</label>
-        <input id="invite-confirm" dir="ltr" type="password" required minLength={12}
+        <PasswordField id="invite-confirm" label="تأكيد كلمة المرور" dir="ltr" required minLength={12}
           autoComplete="new-password" value={confirm} onChange={e=>setConfirm(e.target.value)}/>
         <div className="im-password-rule"><KeyRound size={15}/> 12 محرفاً على الأقل، مع حروف كبيرة وصغيرة ورقم ورمز خاص.</div>
         <button type="submit" className="btn primary im-login-submit" disabled={pending}>
