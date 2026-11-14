@@ -11,7 +11,8 @@ import ImportPaymentPanel from "@/components/ImportPaymentPanel";
 import ImportTrackingPanel from "@/components/ImportTrackingPanel";
 import {documentPreviewUrl,listDocuments,uploadPrivateDocument,DocumentType,BusinessDocument} from "@/lib/documentsApi";
 import { useToast } from "@/components/ToastProvider";
-import { fetchImportCompanies, fetchTenantPorts, createTenantPort, fetchOrder, importApi, ImportCompany, TenantPort, CurrentImportUser, OrderInputItem, PurchaseOrder, SaveOrderInput } from "@/lib/importApi";
+import { fetchImportCompanyOptions, fetchTenantPorts, createTenantPort, fetchOrder, importApi, ImportCompanyOption, TenantPort, CurrentImportUser, OrderInputItem, PurchaseOrder, SaveOrderInput } from "@/lib/importApi";
+import {hasFeature} from "@/lib/featurePermissions";
 
 type LocalLine = OrderInputItem & {localKey:string};
 type QuickReference = "Supplier" | "Customer" | "LoadingPort" | "DischargePort";
@@ -36,7 +37,7 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
   const {notify} = useToast();
   const [form,setForm] = useState<SaveOrderInput>(()=>({...emptyForm(),items:[newLine()]}));
   const [lines,setLines] = useState<LocalLine[]>(()=>[newLine()]);
-  const [companies,setCompanies] = useState<ImportCompany[]>([]);
+  const [companies,setCompanies] = useState<ImportCompanyOption[]>([]);
   const [ports,setPorts] = useState<TenantPort[]>([]);
   const [quickReference,setQuickReference] = useState<QuickReference|null>(null);
   const [quickName,setQuickName] = useState("");
@@ -61,7 +62,7 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
     return()=>URL.revokeObjectURL(url);
   },[sourceFile]);
   useEffect(()=>{
-    if(!orderId||!documentWorkspace)return;
+    if(!orderId||!documentWorkspace||!hasFeature(user,"documents.view"))return;
     let live=true;
     listDocuments({orderId},1,100).then(result=>{
       if(!live)return;
@@ -69,7 +70,7 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
       setViewDoc(prev=>result.items.some(d=>d.id===prev)?prev:result.items[0]?.id||"");
     }).catch(error=>notify({kind:"error",title:"تعذّر تحميل ملفات الطلب",description:(error as Error).message}));
     return()=>{live=false;};
-  },[orderId,documentWorkspace,notify]);
+  },[orderId,documentWorkspace,notify,user]);
 
   function chooseSource(event:ChangeEvent<HTMLInputElement>){
     const file=event.target.files?.[0]||null;
@@ -115,7 +116,7 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
 
   useEffect(()=>{
     let cancelled=false;
-    Promise.all([fetchImportCompanies(),fetchTenantPorts(),orderId?fetchOrder(orderId):Promise.resolve(null)])
+    Promise.all([fetchImportCompanyOptions(),fetchTenantPorts(),orderId?fetchOrder(orderId):Promise.resolve(null)])
       .then(([list,portList,order])=>{
         if(cancelled)return;
         setCompanies(list);
@@ -162,7 +163,7 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
         let record=companies.find(c=>c.type===kind &&
           c.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase());
         if(!record){
-          record=await importApi<ImportCompany>("/api/companies",{
+          record=await importApi<ImportCompanyOption>("/api/companies/quick",{
             method:"POST",body:JSON.stringify({name,type:kind})
           });
           setCompanies(old=>[...old,record!].sort((a,b)=>a.name.localeCompare(b.name)));
@@ -226,7 +227,11 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
   const suppliers=companies.filter(x=>x.type==="Supplier");
   const customers=companies.filter(x=>x.type==="Customer");
   const tabs=[["info","معلومات الطلبية / العقد"],["payments","دفوعات"],
-    ["bl","بوليصة الشحن B/L"],["customs","تخليص جمركي"],["tracking","تتبع الشحنة"]];
+    ["bl","بوليصة الشحن B/L"],["customs","تخليص جمركي"],["tracking","تتبع الشحنة"]]
+    .filter(([key])=>hasFeature(user,"tab."+key));
+  const displayTab=tabs.some(([key])=>key===activeTab)?activeTab:(tabs[0]?.[0]||"");
+  const canViewDocs=hasFeature(user,"documents.view");
+  const canUploadDocs=hasFeature(user,"documents.upload");
   const selectedDoc=storedDocs.find(d=>d.id===viewDoc);
   const previewUrl=sourceUrl||(selectedDoc?documentPreviewUrl(selectedDoc.id):null);
   const previewName=sourceFile?.name||selectedDoc?.originalFileName||"";
@@ -238,11 +243,11 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
        {current&&<span className="im-pill">{current.status==="Draft"?"مسودة":current.status==="Closed"?"مغلق إدارياً":"ملغى"} · إصدار {current.revision}</span>}
     </div>
     <div className={documentWorkspace?"im-file-workspace":"im-file-default"}>
-      {documentWorkspace&&<aside className="im-file-preview">
+      {documentWorkspace&&(canViewDocs||canUploadDocs)&&<aside className="im-file-preview">
         <div className="im-file-preview-head"><strong>الملف المرجعي</strong><small>لا يتم استخراج بيانات تلقائياً</small></div>
-        <label className="im-file-picker"><FilePlus2 size={19}/> اختيار ملف PDF أو صورة
+        {canUploadDocs&&<label className="im-file-picker"><FilePlus2 size={19}/> اختيار ملف PDF أو صورة
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={chooseSource}/>
-        </label>
+        </label>}
         {sourceFile&&<div className="im-file-upload-row">
           <strong dir="auto">{sourceFile.name}</strong>
           <select aria-label="نوع المستند" value={sourceType} onChange={e=>setSourceType(e.target.value as DocumentType)}>
@@ -250,10 +255,10 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
             <option value="CommercialInvoice">فاتورة تجارية</option>
             <option value="BillOfLading">بوليصة شحن</option><option value="Other">مستند آخر</option>
           </select>
-          {orderId&&<button className="btn primary" type="button" disabled={uploading} onClick={()=>void uploadSource(orderId).catch(e=>notify({kind:"error",title:"فشل رفع الملف",description:(e as Error).message}))}>
+          {orderId&&canUploadDocs&&<button className="btn primary" type="button" disabled={uploading} onClick={()=>void uploadSource(orderId).catch(e=>notify({kind:"error",title:"فشل رفع الملف",description:(e as Error).message}))}>
             {uploading?"جارٍ الرفع...":"حفظ الملف بالطلب"}</button>}
         </div>}
-        {!sourceFile&&storedDocs.length>0&&<label className="im-file-doc-picker">ملفات الطلب المحفوظة
+        {canViewDocs&&!sourceFile&&storedDocs.length>0&&<label className="im-file-doc-picker">ملفات الطلب المحفوظة
           <select value={viewDoc} onChange={e=>setViewDoc(e.target.value)}>
             {storedDocs.map(d=><option key={d.id} value={d.id}>{d.originalFileName}</option>)}
           </select></label>}
@@ -267,21 +272,21 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
       </aside>}
       <div className={documentWorkspace?"im-file-workspace-main":"im-file-default-main"}>
         {documentWorkspace&&<div className="im-file-tabs" role="tablist" aria-label="أقسام ملف الاستيراد">
-          {tabs.map(([key,label])=><button key={key} type="button" role="tab" aria-selected={activeTab===key}
-            className={activeTab===key?"active":""} onClick={()=>setActiveTab(key)}>{label}</button>)}
+          {tabs.map(([key,label])=><button key={key} type="button" role="tab" aria-selected={displayTab===key}
+            className={displayTab===key?"active":""} onClick={()=>setActiveTab(key)}>{label}</button>)}
         </div>}
-        {documentWorkspace&&!orderId&&activeTab!=="info"&&<div className="im-info-strip"><Info size={18}/><p>املأ معلومات الطلبية واضغط «إنشاء طلب الشراء» أولاً لتفعيل هذا التبويب وحفظ بياناته على الطلب نفسه.</p></div>}
-        {documentWorkspace&&orderId&&activeTab==="payments"&&current&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
+        {documentWorkspace&&!orderId&&displayTab!=="info"&&<div className="im-info-strip"><Info size={18}/><p>يجب إنشاء طلب شراء أولاً لعرض هذا التبويب وربطه بالطلب.</p></div>}
+        {documentWorkspace&&orderId&&displayTab==="payments"&&current&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
           user={user} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
-        {documentWorkspace&&orderId&&(activeTab==="bl"||activeTab==="customs")&&current&&<ImportLogisticsPanel
-          view={activeTab==="bl"?"bl":"customs"} orderId={orderId} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
-        {documentWorkspace&&orderId&&activeTab==="tracking"&&<ImportTrackingPanel orderId={orderId} disabled={dirty}/>}
-        {documentWorkspace&&orderId&&current&&["payments","bl","customs"].includes(activeTab)&&
+        {documentWorkspace&&orderId&&(displayTab==="bl"||displayTab==="customs")&&current&&<ImportLogisticsPanel
+          view={displayTab==="bl"?"bl":"customs"} orderId={orderId} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
+        {documentWorkspace&&orderId&&displayTab==="tracking"&&<ImportTrackingPanel orderId={orderId} disabled={dirty}/>}
+        {documentWorkspace&&orderId&&current&&canViewDocs&&["payments","bl","customs"].includes(displayTab)&&
           <details className="im-file-docs-disclosure">
             <summary>مرفقات هذا التبويب — رفع وربط الإيصالات والبوالص والبيانات الجمركية</summary>
             <ImportDocumentsPanel orderId={orderId} user={user}/>
           </details>}
-    {documentWorkspace&&activeTab!=="info"?null:loading ? <div className="im-empty">جارٍ تحضير بيانات الطلب...</div> :
+    {(documentWorkspace&&displayTab!=="info" || !documentWorkspace&&!hasFeature(user,"tab.info"))?null:loading ? <div className="im-empty">جارٍ تحضير بيانات الطلب...</div> :
       isEditing&&!current ? <div className="im-empty"><ClipboardList size={30}/><strong>الطلب غير متاح</strong><Link href="/import/orders" className="btn btn-outline">العودة للقائمة</Link></div> :
       !isEditing&&!canManagePayments ?
         <div className="im-info-strip"><Info size={20}/><div><strong>إنشاء طلب شراء يحتاج صلاحية مالية</strong>
@@ -497,12 +502,15 @@ function OrderForm({orderId,canManagePayments,user,documentWorkspace=false}:{ord
           </div>
         </div>
         </form>}
-    {documentWorkspace&&orderId&&activeTab==="info"&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
-    {!documentWorkspace&&orderId&&current&&<ImportLogisticsPanel orderId={orderId} disabled={dirty}
+    {documentWorkspace&&orderId&&displayTab==="info"&&canViewDocs&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
+    {!documentWorkspace&&orderId&&current&&
+      (hasFeature(user,"tab.bl")||hasFeature(user,"tab.customs"))&&<ImportLogisticsPanel
+      view={hasFeature(user,"tab.bl")&&hasFeature(user,"tab.customs")?"all":
+        hasFeature(user,"tab.bl")?"bl":"customs"} orderId={orderId} disabled={dirty}
       onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
-    {!documentWorkspace&&orderId&&current&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
+    {!documentWorkspace&&orderId&&current&&hasFeature(user,"tab.payments")&&<ImportPaymentPanel orderId={orderId} supplierId={current.supplierId}
       user={user} disabled={dirty} onChanged={async()=>{adoptOrder(await fetchOrder(orderId));}}/>}
-    {!documentWorkspace&&orderId&&current&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
+    {!documentWorkspace&&orderId&&current&&canViewDocs&&<ImportDocumentsPanel orderId={orderId} user={user}/>}
       </div>
     </div>
   </>;

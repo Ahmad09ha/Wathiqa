@@ -23,6 +23,8 @@ public sealed class ImportUser : IdentityUser<Guid>
     public string DisplayName { get; set; } = "";
     public bool IsActive { get; set; } = true;
     public bool CanManagePayments { get; set; }
+    // Null retains pre-rollout Staff access; non-null is a full allow-list.
+    public string? AccessPermissionsJson { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 

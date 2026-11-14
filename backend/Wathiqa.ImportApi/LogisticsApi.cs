@@ -11,13 +11,17 @@ public static class LogisticsApi
         var shipments=app.MapGroup("/api/shipments").RequireAuthorization("TenantMember");
         var containers=app.MapGroup("/api/containers").RequireAuthorization("TenantMember");
 
-        orders.MapGet("/{orderId:guid}/shipments", async (Guid orderId,ImportDb db) =>
+        orders.MapGet("/{orderId:guid}/shipments", async (Guid orderId,ImportDb db,HttpContext http) =>
         {
             if(!await db.Orders.AnyAsync(x=>x.Id==orderId))return Results.NotFound();
             var list=await db.Shipments.AsNoTracking().Where(x=>x.OrderId==orderId)
                 .Include(x=>x.Containers).Include(x=>x.Clearance)
                 .OrderBy(x=>x.CreatedAtUtc).ToListAsync();
-            return Results.Ok(list.Select(Detail));
+            var canReadCustoms = TenantFeaturePermissions.GrantedToRequest(
+                http, TenantFeaturePermissions.Customs);
+            var canReadBl = TenantFeaturePermissions.GrantedToRequest(
+                http, TenantFeaturePermissions.BillOfLading);
+            return Results.Ok(list.Select(x=>Detail(x,canReadCustoms,canReadBl)));
         });
         orders.MapPost("/{orderId:guid}/shipments",async (
             Guid orderId,ShipmentInput body,ImportDb db,System.Security.Claims.ClaimsPrincipal principal) =>
@@ -52,14 +56,16 @@ public static class LogisticsApi
             catch(DbUpdateException){return Conflict("duplicate_bl_number");}
         });
 
-        shipments.MapGet("/{id:guid}",async (Guid id,ImportDb db) =>
+        shipments.MapGet("/{id:guid}",async (Guid id,ImportDb db,HttpContext http) =>
         {
             var shipment=await db.Shipments.AsNoTracking().Include(s=>s.Containers)
                 .Include(s=>s.Clearance).SingleOrDefaultAsync(s=>s.Id==id);
-            return shipment is null?Results.NotFound():Results.Ok(Detail(shipment));
+            return shipment is null?Results.NotFound():Results.Ok(Detail(shipment,
+                TenantFeaturePermissions.GrantedToRequest(http,TenantFeaturePermissions.Customs)));
         });
         shipments.MapPut("/{id:guid}",async (
-            Guid id,ShipmentInput body,ImportDb db,System.Security.Claims.ClaimsPrincipal principal) =>
+            Guid id,ShipmentInput body,ImportDb db,
+            System.Security.Claims.ClaimsPrincipal principal,HttpContext http) =>
         {
             if(body.Revision is null or < 1)return Invalid("revision_required");
             ValidatedShipment input;
@@ -111,7 +117,8 @@ public static class LogisticsApi
                 await LogisticsRollup.RefreshAsync(db,order,actor,now);
                 await db.SaveChangesAsync();
                 await transaction.CommitAsync();
-                return Results.Ok(Detail(shipment));
+            return Results.Ok(Detail(shipment,
+                TenantFeaturePermissions.GrantedToRequest(http,TenantFeaturePermissions.Customs)));
             }catch(DbUpdateConcurrencyException){return Conflict("stale_shipment_revision");}
             catch(DbUpdateException){return Conflict("shipment_update_conflict");}
         });
@@ -319,17 +326,28 @@ public static class LogisticsApi
         id is null?null:await db.Companies.AsNoTracking()
             .Where(x=>x.Id==id && x.Type=="Broker").Select(x=>x.Name).FirstOrDefaultAsync();
 
-    private static object Detail(ImportShipment x)=>new
+    private static object Detail(ImportShipment x,
+        bool includeCustoms=true,bool includeBl=true)=>new
     {
-        x.Id,x.OrderId,x.BlNumber,x.BlType,x.BlOriginalStatus,
-        x.ShippingLineId,x.ShippingLineSnapshot,x.Vessel,x.Voyage,
-        x.Shipper,x.Consignee,x.NotifyParty,x.ShippedOnBoardDate,
-        x.OriginalReceivedDate,x.PackageCount,x.PalletCount,
-        x.PortOfLoading,x.PortOfDischarge,x.Etd,x.Eta,x.FreeTimeDays,
-        x.TrackingUrl,x.Revision,
+        x.Id,x.OrderId,x.BlNumber,
+        BlType=includeBl?x.BlType:"",BlOriginalStatus=includeBl?x.BlOriginalStatus:"",
+        ShippingLineId=includeBl?x.ShippingLineId:null,
+        ShippingLineSnapshot=includeBl?x.ShippingLineSnapshot:"",
+        Vessel=includeBl?x.Vessel:"",Voyage=includeBl?x.Voyage:"",
+        Shipper=includeBl?x.Shipper:"",Consignee=includeBl?x.Consignee:"",
+        NotifyParty=includeBl?x.NotifyParty:"",
+        ShippedOnBoardDate=includeBl?x.ShippedOnBoardDate:null,
+        OriginalReceivedDate=includeBl?x.OriginalReceivedDate:null,
+        PackageCount=includeBl?x.PackageCount:null,
+        PalletCount=includeBl?x.PalletCount:null,
+        PortOfLoading=includeBl?x.PortOfLoading:"",
+        PortOfDischarge=includeBl?x.PortOfDischarge:"",
+        Etd=includeBl?x.Etd:null,Eta=includeBl?x.Eta:null,
+        x.FreeTimeDays,
+        TrackingUrl=includeBl?x.TrackingUrl:"",x.Revision,
         Containers=x.Containers.Where(c=>!c.IsDeleted).OrderBy(c=>c.CreatedAtUtc)
             .Select(ContainerDetail).ToArray(),
-        Clearance=x.Clearance is null?null:ClearanceDetail(x.Clearance)
+        Clearance=!includeCustoms||x.Clearance is null?null:ClearanceDetail(x.Clearance)
     };
     private static object ContainerDetail(ImportContainer c)=>new
     {

@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using System.Net.Mail;
 
 namespace Wathiqa.ImportApi;
@@ -17,14 +18,52 @@ public static class CompanyApi
     {
         var group = app.MapGroup("/api/companies").RequireAuthorization("TenantMember");
 
-        group.MapGet("/", async (ImportDb db) =>
-            Results.Ok((await db.Companies.AsNoTracking()
-                .OrderBy(x => x.Name).ToListAsync()).Select(Detail)));
+        // Shared selector only: staff who can work on purchase orders but
+        // cannot open the company directory must not receive tax/contact data.
+        group.MapGet("/options", async (ImportDb db) =>
+            Results.Ok(await db.Companies.AsNoTracking()
+                .OrderBy(x => x.Name)
+                .Select(x => new { x.Id, x.Name, x.Type })
+                .ToListAsync()));
+
+        group.MapPost("/quick", async (
+            SaveCompanyRequest body, ImportDb db,
+            System.Security.Claims.ClaimsPrincipal principal) =>
+        {
+            // Purchase-order quick add can create only a Supplier/Customer,
+            // even when the employee cannot access the company directory.
+            if (body.Type is not ("Supplier" or "Customer") ||
+                !TryNormalize(body, out var normalized))
+                return Results.BadRequest(new { error = "invalid_company_details" });
+            var entity = new TenantCompany { TenantId = CurrentTenant.Id(principal) };
+            Apply(entity, normalized!);
+            db.Companies.Add(entity);
+            db.CompanyAudits.Add(Audit(entity, CurrentTenant.UserId(principal), "Created"));
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/companies/{entity.Id}",
+                new { entity.Id, entity.Name, entity.Type });
+        });
+
+        group.MapGet("/", async (ImportDb db,
+            System.Security.Claims.ClaimsPrincipal principal,
+            UserManager<ImportUser> users) =>
+        {
+            var query = db.Companies.AsNoTracking().AsQueryable();
+            var user = await db.Users.SingleAsync(x =>
+                x.Id == CurrentTenant.UserId(principal) &&
+                x.TenantId == CurrentTenant.Id(principal));
+            var admin = await users.IsInRoleAsync(user, "Admin");
+            if (!admin && !TenantFeaturePermissions.Effective(user, false)
+                    .Contains(TenantFeaturePermissions.Companies))
+                query = query.Where(x => x.Type == "Supplier" || x.Type == "Customer");
+            return Results.Ok((await query.OrderBy(x => x.Name)
+                .ToListAsync()).Select(Detail));
+        });
 
         // New paged directory contract. Retain the existing unpaged GET / for
         // current Purchase Order supplier/customer dropdown consumers.
         group.MapGet("/search", async (
-            ImportDb db, string? search, string? type, int? page, int? pageSize) =>
+            ImportDb db, HttpContext http, string? search, string? type, int? page, int? pageSize) =>
         {
             var currentPage = page ?? 1;
             var take = pageSize ?? 20;
@@ -40,6 +79,9 @@ public static class CompanyApi
                     return Results.BadRequest(new { error = "invalid_filter" });
             }
             var query = db.Companies.AsNoTracking().AsQueryable();
+            if (!TenantFeaturePermissions.GrantedToRequest(
+                    http,TenantFeaturePermissions.Companies))
+                query = query.Where(x => x.Type == "Supplier" || x.Type == "Customer");
             if (filterType.Length > 0) query = query.Where(c => c.Type == filterType);
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -55,16 +97,25 @@ public static class CompanyApi
                 total, items = companies.Select(Detail).ToArray() });
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, ImportDb db) =>
-            await db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id)
-                is { } company ? Results.Ok(Detail(company)) : Results.NotFound());
+        group.MapGet("/{id:guid}", async (Guid id, ImportDb db, HttpContext http) =>
+        {
+            var company=await db.Companies.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==id);
+            if(company is null)return Results.NotFound();
+            if(!TenantFeaturePermissions.GrantedToRequest(http,TenantFeaturePermissions.Companies)
+                && company.Type is not ("Supplier" or "Customer"))
+                return Results.NotFound();
+            return Results.Ok(Detail(company));
+        });
 
         group.MapPost("/", async (
             SaveCompanyRequest body, ImportDb db,
-            System.Security.Claims.ClaimsPrincipal principal) =>
+            System.Security.Claims.ClaimsPrincipal principal,HttpContext http) =>
         {
             if (!TryNormalize(body, out var normalized))
                 return Results.BadRequest(new { error = "invalid_company_details" });
+            if(!TenantFeaturePermissions.GrantedToRequest(http,TenantFeaturePermissions.Companies)
+                && normalized!.Type is not ("Supplier" or "Customer"))
+                return Results.Forbid();
             var tenantId = CurrentTenant.Id(principal);
             var company = new TenantCompany { TenantId = tenantId };
             Apply(company, normalized!);
@@ -76,12 +127,16 @@ public static class CompanyApi
         });
 
         group.MapPut("/{id:guid}", async (Guid id, SaveCompanyRequest body, ImportDb db,
-            System.Security.Claims.ClaimsPrincipal principal) =>
+            System.Security.Claims.ClaimsPrincipal principal,HttpContext http) =>
         {
             if (!TryNormalize(body, out var normalized))
                 return Results.BadRequest(new { error = "invalid_company_details" });
             var company = await db.Companies.SingleOrDefaultAsync(x => x.Id == id);
             if (company is null) return Results.NotFound(); // including foreign-tenant ID
+            if(!TenantFeaturePermissions.GrantedToRequest(http,TenantFeaturePermissions.Companies)
+                && (company.Type is not ("Supplier" or "Customer") ||
+                    normalized!.Type is not ("Supplier" or "Customer")))
+                return Results.Forbid();
             if (company.Type != normalized!.Type && await HasActiveReferences(db, id))
                 return Results.Conflict(new { error = "company_in_use" });
             Apply(company, normalized!);
@@ -91,10 +146,13 @@ public static class CompanyApi
         });
 
         group.MapDelete("/{id:guid}", async (Guid id, ImportDb db,
-            System.Security.Claims.ClaimsPrincipal principal) =>
+            System.Security.Claims.ClaimsPrincipal principal,HttpContext http) =>
         {
             var company = await db.Companies.SingleOrDefaultAsync(x => x.Id == id);
             if (company is null) return Results.NotFound();
+            if(!TenantFeaturePermissions.GrantedToRequest(http,TenantFeaturePermissions.Companies)
+                && company.Type is not ("Supplier" or "Customer"))
+                return Results.Forbid();
             // A soft-deleted trading party must not disappear from active
             // Purchase Orders, B/L shipping lines or customs declarations.
             if (await HasActiveReferences(db, id))

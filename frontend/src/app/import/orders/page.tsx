@@ -8,7 +8,7 @@ import ImportShell from "@/components/ImportShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useToast } from "@/components/ToastProvider";
 import {
-  fetchImportCompanies, fetchOrders, importApi, ImportCompany,
+  fetchImportCompanyOptions, fetchOrders, importApi, ImportCompanyOption,
   OrderListItem, OrdersPage as OrdersPageResult
 } from "@/lib/importApi";
 
@@ -59,7 +59,7 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
  const rawSearch=searchParams.toString();
  const active=useMemo(()=>new URLSearchParams(rawSearch),[rawSearch]);
  const [draft,setDraft]=useState<Filters>(()=>parseFilters(active));
- const [suppliers,setSuppliers]=useState<ImportCompany[]>([]);
+  const [suppliers,setSuppliers]=useState<ImportCompanyOption[]>([]);
  const [data,setData]=useState<OrdersPageResult|null>(null);
  const [loading,setLoading]=useState(true);
  const [refresh,setRefresh]=useState(0);
@@ -83,7 +83,7 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
  },[query,notify]);
  useEffect(()=>{void load();},[load,refresh]);
  useEffect(()=>{
-  fetchImportCompanies().then(companies=>
+   fetchImportCompanyOptions().then(companies=>
    setSuppliers(companies.filter(x=>x.type==="Supplier"))
   ).catch(error=>notify({kind:"error",title:"تعذّر تحميل المورّدين",description:(error as Error).message}));
  },[notify]);

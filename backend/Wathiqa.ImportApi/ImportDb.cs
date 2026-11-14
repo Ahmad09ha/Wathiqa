@@ -125,6 +125,7 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.TenantId);
             e.Property(x => x.DisplayName).HasMaxLength(160);
+            e.Property(x => x.AccessPermissionsJson).HasMaxLength(1200);
         });
         model.Entity<TenantCompany>(e =>
         {
@@ -194,8 +195,8 @@ public sealed class ImportDb(DbContextOptions<ImportDb> options, IHttpContextAcc
         {
             e.HasIndex(x => new { x.TenantId, x.OccurredAtUtc });
             e.Property(x => x.Action).HasMaxLength(90);
-            e.Property(x => x.PreviousValue).HasMaxLength(100);
-            e.Property(x => x.NewValue).HasMaxLength(100);
+            e.Property(x => x.PreviousValue).HasMaxLength(1000);
+            e.Property(x => x.NewValue).HasMaxLength(1000);
             e.HasQueryFilter(x => x.TenantId == CurrentTenantId);
         });
         model.Entity<PurchaseOrder>(e =>

@@ -4,6 +4,7 @@ import {DragEvent,FormEvent,useCallback,useEffect,useMemo,useRef,useState} from 
 import {Check,FileCheck2,FilePlus2,FileText,Info,Link2,
   Paperclip,Plus,RefreshCw,ShieldAlert,Trash2,UploadCloud,Download,Eye,X} from "lucide-react";
 import {useToast} from "@/components/ToastProvider";
+import {hasFeature} from "@/lib/featurePermissions";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {listShipments,Shipment} from "@/lib/logisticsApi";
 import {CurrentImportUser} from "@/lib/importApi";
@@ -79,6 +80,7 @@ export default function ImportDocumentsPanel({
   orderId,user
 }:{orderId:string;user:CurrentImportUser}){
  const {notify}=useToast();
+ const canUpload=hasFeature(user,"documents.upload");
  const inputRef=useRef<HTMLInputElement|null>(null);
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
@@ -282,7 +284,7 @@ export default function ImportDocumentsPanel({
        <RefreshCw size={16}/> تحديث
      </button>
    </div>
-   <form className="im-doc-upload" onSubmit={event=>void upload(event)}>
+    {canUpload&&<form className="im-doc-upload" onSubmit={event=>void upload(event)}>
      <div className="im-doc-upload-title">
        <UploadCloud size={20}/><div><strong>رفع مستند جديد</strong><p>PDF / JPG / PNG فقط — حتى 25 MB للملف.</p></div>
      </div>
@@ -318,7 +320,7 @@ export default function ImportDocumentsPanel({
          <UploadCloud size={17}/>{busy?"جارٍ الحفظ...":"رفع وربط المستند"}
        </button>
      </div>
-   </form>
+    </form>}
    <div className="im-doc-existing">
      <div className="im-doc-section-heading">
        <div><FileText size={19}/><h3>ملفات هذا الطلب</h3></div>
@@ -339,18 +341,18 @@ export default function ImportDocumentsPanel({
            <button type="button" className="btn btn-outline" onClick={()=>setPreviewId(
              previous=>previous===doc.id?null:doc.id)}><Eye size={15}/> معاينة</button>
            <a className="btn btn-outline" href={documentDownloadUrl(doc.id)}><Download size={15}/> تنزيل</a>
-           <button type="button" className="im-table-delete" title="حذف المستند" aria-label={"حذف "+doc.originalFileName}
-             disabled={busy} onClick={()=>setPendingDelete({kind:"document",documentId:doc.id})}>
-             <Trash2 size={16}/></button>
+            {canUpload&&<button type="button" className="im-table-delete" title="حذف المستند" aria-label={"حذف "+doc.originalFileName}
+              disabled={busy} onClick={()=>setPendingDelete({kind:"document",documentId:doc.id})}>
+              <Trash2 size={16}/></button>}
          </div>
          <div className="im-doc-linked-targets">
            {linkLabels(doc).map(link=><span key={link.id} className="im-doc-link-chip">
              <Link2 size={13}/>{link.label}
-             <button type="button" title="إزالة هذا الربط فقط" aria-label={"إزالة ربط "+link.label}
-               onClick={()=>setPendingDelete({kind:"link",documentId:doc.id,linkId:link.id})}><X size={13}/></button>
+              {canUpload&&<button type="button" title="إزالة هذا الربط فقط" aria-label={"إزالة ربط "+link.label}
+                onClick={()=>setPendingDelete({kind:"link",documentId:doc.id,linkId:link.id})}><X size={13}/></button>}
            </span>)}
-           <button type="button" className="im-doc-add-link" disabled={busy}
-             onClick={()=>setRelinkId(x=>x===doc.id?null:doc.id)}><Plus size={14}/> ربط بجهة أخرى</button>
+            {canUpload&&<button type="button" className="im-doc-add-link" disabled={busy}
+              onClick={()=>setRelinkId(x=>x===doc.id?null:doc.id)}><Plus size={14}/> ربط بجهة أخرى</button>}
          </div>
          {relinkId===doc.id&&<div className="im-doc-relink">
            <p>سيُستخدم نفس الملف المحفوظ، بدون رفع نسخة جديدة.</p>

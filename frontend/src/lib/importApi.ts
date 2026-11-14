@@ -12,8 +12,10 @@ export interface CurrentImportUser {
   slug: string;
   role: "Admin" | "Staff";
   canManagePayments: boolean;
+  permissions: string[];
   accessExpiresAtUtc: string | null;
 }
+export type ImportCompanyOption = Pick<ImportCompany, "id"|"name"|"type">;
 export interface ImportCompany {
   id: string;
   name: string;
@@ -55,6 +57,7 @@ export interface ImportTeamUser {
   isActive: boolean;
   role: "Admin" | "Staff";
   canManagePayments: boolean;
+  permissions: string[];
 }
 export interface PurchaseOrderItem {
   id: string;
@@ -414,6 +417,8 @@ export async function importApi<T>(path: string, options: RequestInit = {}): Pro
 }
 export const currentImportUser = () => importApi<CurrentImportUser>("/api/auth/me");
 export const fetchImportCompanies = () => importApi<ImportCompany[]>("/api/companies");
+export const fetchImportCompanyOptions = () =>
+  importApi<ImportCompanyOption[]>("/api/companies/options");
 export const fetchImportCompaniesPage = (params: URLSearchParams) =>
   importApi<ImportCompaniesPage>("/api/companies/search?" + params.toString());
 export const fetchOrders = (params: URLSearchParams) =>

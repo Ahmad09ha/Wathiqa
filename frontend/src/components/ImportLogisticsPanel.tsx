@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {useToast} from "@/components/ToastProvider";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import {fetchImportCompanies,ImportCompany} from "@/lib/importApi";
+import {fetchImportCompanyOptions,ImportCompanyOption} from "@/lib/importApi";
 import {
   BlOriginalStatus,BlType,ClearanceStatus,ContainerInput,ContainerStatus,
   CustomsInput,LogisticsContainer,Shipment,ShipmentInput,
@@ -68,7 +68,7 @@ export default function ImportLogisticsPanel({
 }){
   const {notify}=useToast();
   const [shipments,setShipments]=useState<Shipment[]>([]);
-  const [companies,setCompanies]=useState<ImportCompany[]>([]);
+  const [companies,setCompanies]=useState<ImportCompanyOption[]>([]);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -82,7 +82,7 @@ export default function ImportLogisticsPanel({
   const [deleting,setDeleting]=useState<LogisticsContainer|null>(null);
   const reload=useCallback(async()=>{
     try{
-      const [list,parties]=await Promise.all([listShipments(orderId),fetchImportCompanies()]);
+       const [list,parties]=await Promise.all([listShipments(orderId),fetchImportCompanyOptions()]);
       setShipments(list);
       setCompanies(parties);
       setSelectedId(prev=>list.some(x=>x.id===prev)?prev:list[0]?.id||null);

@@ -12,6 +12,7 @@ public sealed record InviteRequest(string Email);
 public sealed record AcceptInvitationRequest(string Token, string DisplayName, string Password);
 public sealed record UpdatePaymentPermissionRequest(bool CanManagePayments);
 public sealed record UpdateUserActiveRequest(bool IsActive);
+public sealed record UpdateUserVisibilityRequest(List<string>? Permissions);
 
 public static class AuthApi
 {
@@ -57,6 +58,7 @@ public static class AuthApi
                 user.Id, user.Email, user.DisplayName, TenantId = tenantId,
                 tenant.Name, tenant.Slug, Role = admin ? "Admin" : "Staff",
                 CanManagePayments = admin || user.CanManagePayments,
+                Permissions = TenantFeaturePermissions.Effective(user, admin),
                 tenant.AccessExpiresAtUtc
             });
         }).RequireAuthorization("TenantMember");
@@ -74,9 +76,45 @@ public static class AuthApi
                 var isAdmin = await users.IsInRoleAsync(user, "Admin");
                 output.Add(new { user.Id, user.Email, user.DisplayName, user.IsActive,
                     Role = isAdmin ? "Admin" : "Staff",
-                    CanManagePayments = isAdmin || user.CanManagePayments });
+                    CanManagePayments = isAdmin || user.CanManagePayments,
+                    Permissions = TenantFeaturePermissions.Effective(user, isAdmin) });
             }
             return Results.Ok(output);
+        }).RequireAuthorization("TenantAdmin");
+
+        // One atomic, audited replacement of this Staff user's full view
+        // permissions. A Tenant Admin can manage only its own staff accounts.
+        app.MapPut("/api/users/{id:guid}/visibility", async (
+            Guid id, UpdateUserVisibilityRequest body,
+            System.Security.Claims.ClaimsPrincipal principal, ImportDb db,
+            UserManager<ImportUser> users) =>
+        {
+            if (!TenantFeaturePermissions.IsValid(body.Permissions))
+                return Results.BadRequest(new { error = "invalid_visibility_permissions" });
+            var tenantId = CurrentTenant.Id(principal);
+            var member = await db.Users.SingleOrDefaultAsync(x =>
+                x.Id == id && x.TenantId == tenantId);
+            if (member is null) return Results.NotFound();
+            if (await users.IsInRoleAsync(member, "Admin"))
+                return Results.BadRequest(new { error = "admin_permission_is_implicit" });
+            var before = TenantFeaturePermissions.Serialize(
+                TenantFeaturePermissions.Effective(member, false));
+            var after = TenantFeaturePermissions.Serialize(body.Permissions!);
+            if (before != after)
+            {
+                member.AccessPermissionsJson = after;
+                db.SecurityAudits.Add(new SecurityAudit
+                {
+                    TenantId = tenantId, ActorId = CurrentTenant.UserId(principal),
+                    TargetUserId = id, Action = "StaffVisibility",
+                    PreviousValue = before, NewValue = after
+                });
+                await db.SaveChangesAsync();
+            }
+            return Results.Ok(new
+            {
+                member.Id, Permissions = TenantFeaturePermissions.Effective(member, false)
+            });
         }).RequireAuthorization("TenantAdmin");
 
         app.MapPost("/api/users/invitations", async (

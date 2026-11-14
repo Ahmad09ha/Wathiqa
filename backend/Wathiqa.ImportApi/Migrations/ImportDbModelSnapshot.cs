@@ -646,6 +646,10 @@ namespace Wathiqa.ImportApi.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("AccessPermissionsJson")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
                     b.Property<bool>("CanManagePayments")
                         .HasColumnType("boolean");
 
@@ -1597,16 +1601,16 @@ namespace Wathiqa.ImportApi.Migrations
 
                     b.Property<string>("NewValue")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PreviousValue")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<Guid>("TargetUserId")
                         .HasColumnType("uuid");

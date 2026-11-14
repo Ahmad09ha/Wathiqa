@@ -3,9 +3,10 @@
 import {FormEvent,useCallback,useEffect,useRef,useState} from "react";
 import {AlertTriangle,CheckCircle2,FileText,RefreshCw,Wallet} from "lucide-react";
 import {useToast} from "@/components/ToastProvider";
-import {CurrentImportUser,fetchImportCompanies,ImportCompany} from "@/lib/importApi";
+import {CurrentImportUser,fetchImportCompanyOptions,ImportCompanyOption} from "@/lib/importApi";
 import {BusinessDocument,listDocuments} from "@/lib/documentsApi";
 import {FinanceAction,financeWrite,getOrderFinance,OrderFinance} from "@/lib/paymentsApi";
+import {hasFeature} from "@/lib/featurePermissions";
 
 const actions: {key:FinanceAction;label:string}[] = [
   {key:"schedule",label:"استحقاق مخطط"},
@@ -42,7 +43,7 @@ export default function ImportPaymentPanel({orderId,supplierId,user,disabled,onC
   const {notify}=useToast();
   const [financial,setFinancial]=useState<OrderFinance|null>(null);
   const [documents,setDocuments]=useState<BusinessDocument[]>([]);
-  const [companies,setCompanies]=useState<ImportCompany[]>([]);
+  const [companies,setCompanies]=useState<ImportCompanyOption[]>([]);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [action,setAction]=useState<FinanceAction>("schedule");
@@ -53,13 +54,15 @@ export default function ImportPaymentPanel({orderId,supplierId,user,disabled,onC
   const load=useCallback(async()=>{
     try{
       const [finance,docPage,parties]=await Promise.all([
-        getOrderFinance(orderId),listDocuments({orderId},1,100),fetchImportCompanies()
+         getOrderFinance(orderId),
+         hasFeature(user,"documents.view")?listDocuments({orderId},1,100):Promise.resolve({items:[]}),
+         fetchImportCompanyOptions()
       ]);
       setFinancial(finance);setDocuments(docPage.items);setCompanies(parties);
     }catch(error){
       notify({kind:"error",title:"تعذّر تحميل الدفعات",description:(error as Error).message});
     }finally{setLoading(false);}
-  },[orderId,notify]);
+  },[orderId,notify,user]);
   useEffect(()=>{void load();},[load]);
   function change<K extends keyof FormDataState>(key:K,value:FormDataState[K]){
     pendingKey.current=null;setForm(x=>({...x,[key]:value}));

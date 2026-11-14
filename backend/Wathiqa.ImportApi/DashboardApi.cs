@@ -533,6 +533,7 @@ public static class DashboardApi
             ("tracking", "Registered") => "تسجيل مرجع تتبع",
             ("tracking", "LastSynced") => "آخر تحديث للتتبع",
             ("security", "CanManagePayments") => "تعديل صلاحيات الدفوعات",
+            ("security", "StaffVisibility") => "تعديل صلاحيات عرض أقسام الموظف",
             ("security", "UserActive") => "تغيير حالة حساب موظف",
             _ => category switch
             {

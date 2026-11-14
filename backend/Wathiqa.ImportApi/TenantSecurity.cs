@@ -32,11 +32,16 @@ public sealed class TenantAccessHandler(ImportDb db, UserManager<ImportUser> use
             .SingleOrDefaultAsync(u => u.Id == userId && u.TenantId == tenantId);
         if (user is null || !user.IsActive || !TenantAccess.Allowed(user.Tenant, DateTime.UtcNow)) return;
 
+        var isAdmin = await users.IsInRoleAsync(user, "Admin");
+        if (context.Resource is HttpContext http)
+            http.Items[TenantFeaturePermissions.RequestRightsKey] =
+                TenantFeaturePermissions.Effective(user, isAdmin);
         var authorized = requirement.Permission switch
         {
-            TenantPermission.Member => true,
-            TenantPermission.Admin => await users.IsInRoleAsync(user, "Admin"),
-            TenantPermission.ManagePayments => user.CanManagePayments || await users.IsInRoleAsync(user, "Admin"),
+            TenantPermission.Member => isAdmin ||
+                TenantFeaturePermissions.RequestAllowed(user, context.Resource as HttpContext),
+            TenantPermission.Admin => isAdmin,
+            TenantPermission.ManagePayments => user.CanManagePayments || isAdmin,
             _ => false
         };
         if (authorized) context.Succeed(requirement);

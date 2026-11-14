@@ -7,6 +7,7 @@ import { BookOpenText, Building2, LogOut, Menu, ShieldCheck, X, LayoutGrid, User
 import BrandMark from "@/components/BrandMark";
 import { useToast } from "@/components/ToastProvider";
 import { CurrentImportUser, ImportApiError, currentImportUser, importApi, resetImportCsrf } from "@/lib/importApi";
+import {hasFeature} from "@/lib/featurePermissions";
 
 export default function ImportShell({
   section, title, description, children
@@ -66,14 +67,20 @@ export default function ImportShell({
         dateStyle:"medium",timeStyle:"short"
       })
     : "لا يوجد تاريخ انتهاء تلقائي لهذا الحساب.";
+  const sectionRights: Record<string,string> = {
+    home:"nav.dashboard",orders:"nav.orders",reference:"nav.reference",
+    operations:"nav.operations",companies:"nav.companies"
+  };
+  const canOpenSection = section==="team" ? user.role==="Admin"
+    :hasFeature(user,sectionRights[section]);
   const navigation = [
     {name:"نظرة عامة", href:"/import", id:"home", icon:LayoutGrid},
     {name:"طلبات الشراء", href:"/import/orders", id:"orders", icon:ClipboardList},
     {name:"بيانات طلبات الشراء", href:"/import/reference-data", id:"reference", icon:Anchor},
     {name:"متابعة العمليات", href:"/import/operations", id:"operations", icon:Ship},
     {name:"الجهات والشركات", href:"/import/companies", id:"companies", icon:Building2},
-    ...(user.role === "Admin" ? [{name:"الموظفون والصلاحيات", href:"/import/team", id:"team", icon:Users}] : [])
-  ];
+    ...(user.role==="Admin" ? [{name:"الموظفون والصلاحيات",href:"/import/team",id:"team",icon:Users}] : [])
+  ].filter(item=>item.id==="team"||hasFeature(user,sectionRights[item.id]));
   return (
     <div className="im-app">
       {menuOpen && <button type="button" className="im-backdrop" onClick={() => setMenuOpen(false)} aria-label="إغلاق القائمة" />}
@@ -127,7 +134,14 @@ export default function ImportShell({
             <ShieldCheck size={17}/><span>{user.role === "Admin" ? "حساب مدير" : "حساب موظف"}</span>
           </div>
         </header>
-        <main className="im-content">{children(user)}</main>
+        <main className="im-content">{canOpenSection ? children(user) :
+          <div className="im-empty" role="alert"><ShieldCheck size={30}/>
+            <strong>ما عندك صلاحية لعرض هذا القسم</strong>
+            <p>يمكن لمدير شركتك تفعيل هذه الصفحة من «الموظفون والصلاحيات».</p>
+            {navigation.length>0&&<Link href={navigation[0].href} className="btn btn-outline">
+              الانتقال إلى قسم مسموح
+            </Link>}
+          </div>}</main>
       </div>
     </div>
   );
