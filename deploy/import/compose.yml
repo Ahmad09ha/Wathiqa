@@ -60,6 +60,9 @@ services:
       # Every API deploy applies pending Import EF migrations before the HTTP
       # listener starts. CLI seed commands are still explicit, not automatic.
       WATHIQA_IMPORT_AUTO_MIGRATE: "${WATHIQA_IMPORT_AUTO_MIGRATE:-true}"
+      # Dokploy Compose Environment / private .env -> backend configuration.
+      # Keep the actual provider credential outside Git and Docker build args.
+      OceanTracking__ShipsGoApiKey: "${WATHIQA_SHIPSGO_API_KEY:-}"
       ReverseProxy__KnownProxies: ${WATHIQA_WEB_IP:?Set the exact frontend container IP}
       Documents__PrivateRoot: /var/lib/wathiqa/documents
       Documents__ClamScanExecutable: /usr/bin/clamscan

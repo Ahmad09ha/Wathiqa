@@ -26,6 +26,14 @@
 8. On an **independent staging host**, run `scripts/vps/restore-rehearsal.sh` with explicit snapshot ID/acknowledgment, protected PFX recovery password, staging PostgreSQL credentials, and original backup path values for source location verification. Check restored DB, all document SHA-256, XML keys, decryptable PFX; start a restored staging API to prove protected cookie continuity.
 9. Run 5 anonymized REAL import orders against staging and answer the agreed five business questions (supplier balances by currency, delivered-unpaid, at-sea containers, missing B/L/docs, customs status). Also verify SuperAdmin cannot open any merchant bank evidence or Orders, and tenant Admin cannot reach platform routes. Obtain owner/merchant acceptance, monitoring alerts, **independent platform owner credential recovery/rotation procedure**, rollback/forward-fix procedure and release commit SHA before any live production launch.
 
+## ShipsGo tracking secret for Dokploy (not part of Git)
+
+- The application reads `OceanTracking:ShipsGoApiKey` on the **API server only**. `deploy/import/compose.yml` maps private Compose variable `WATHIQA_SHIPSGO_API_KEY` to container environment `OceanTracking__ShipsGoApiKey`. Do not use `NEXT_PUBLIC_` or frontend variables for this key.
+- For Dokploy's GitHub-backed **Compose** service, add `WATHIQA_SHIPSGO_API_KEY` with the real value under **Environment** and redeploy the same Compose service. Dokploy stores the deployment `.env` outside the repository; environment entries are not injected into containers unless mapped in Compose. For manual VPS Compose, put the value only in the gitignored `deploy/import/.env` on the VPS. See `DOKPLOY-GITHUB-AR.md`.
+- The tracked `deploy/import/.env.example` contains an **empty placeholder**. If the variable is absent, the API still starts but live provider activation remains unavailable (`tracking_not_configured`). No secret is included in Docker build args, image layers, or source control.
+- Never paste the actual value into Git, `docker compose config` output, tickets, screenshots, or deployment logs. Prefer `docker compose ... config --quiet` for validation. Container environment variables may be inspectable by Docker administrators; restrict Dokploy/VPS access accordingly.
+- Real provider registration is a **chargeable POST per new master B/L**. Confirm an approved ShipsGo credit balance and valid reference before the first live activation. Health-check success and mock-provider tests do **not** verify the real key or live tracking behavior.
+
 ## Automatic Import schema upgrades on every deployment
 
 The Import API **automatically runs EF Core migrations before opening its HTTP listener** on every non-Development startup. This is enabled by default and explicitly configured as `WATHIQA_IMPORT_AUTO_MIGRATE=true` in `deploy/import/compose.yml`. No manual migration command is required for ordinary deploy/redeploy/restart.

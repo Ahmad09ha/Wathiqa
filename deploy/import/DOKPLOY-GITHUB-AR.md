@@ -42,6 +42,7 @@ sudo bash deploy/import/provision-vps.sh
 2. Source: GitHub، اختر Repository الخاص بـ Hussam/Wathiqa والفرع `feature/import-management-mvp` بعد نشر التعديلات.
 3. Compose file path: `deploy/import/compose.yml`، مع دعم Dokploy للمسار النسبي والبناء باستخدام context `../..`. إذا كان واجهتك تتطلب تحديد Base Directory، يجب أن تنتهي سياقات البناء بجذر المستودع؛ تأكد من ذلك في Build Logs.
 4. Environment: أدخل محتوى `deploy/import/.env` **كقيم خاصة بالخادم**، مع `WATHIQA_PRIVATE_ROOT`, `WATHIQA_SECRETS_ROOT`, `WATHIQA_PRIVATE_SUBNET`, `WATHIQA_WEB_IP`. لا تضف كلمات المرور كنص في Compose.
+   لتفعيل تتبع ShipsGo أضف كذلك المتغير `WATHIQA_SHIPSGO_API_KEY` بقيمته الحقيقية في **Dokploy > Compose Service > Environment**. ملف `deploy/import/compose.yml` يمرره إلى حاوية `api` فقط كـ `OceanTracking__ShipsGoApiKey`. Dokploy يكتب قيم البيئة إلى ملف `.env` خاص بالنشر، لكن لا يرسلها تلقائياً إلى الحاويات إلا إذا ربطتها في Compose؛ الربط موجود الآن. لا تضع المفتاح في GitHub أو ملف `.env.example` أو واجهة Next.js. إذا تدير Compose يدوياً بدلاً من Dokploy، ضعه في `deploy/import/.env` المستثنى من Git على VPS.
 5. عند إضافة Domain، اربطه حصراً بخدمة `web` على المنفذ الداخلي **3000**؛ فعّل HTTPS/Let's Encrypt. اترك خدمات `api`, `postgres`, `clamav-signatures` دون Domain أو Port منشور.
 6. ابدأ أولاً على **staging domain**. بعد حل البوابات الأمنية/التشغيلية يمكن التفكير بالنشر العام.
 
@@ -74,6 +75,8 @@ docker compose --env-file deploy/import/.env -f deploy/import/compose.yml run --
 لا تستعمل دومين الإنتاج قبل اكتمال التحقق.
 
 ## 5) تحقّق من المخرجات
+بعد حفظ متغير ShipsGo، نفّذ **Redeploy** لخدمة Compose حتى يصل إلى حاوية `api` الجديدة. تأكد من عمل صفحة التاجر وسجلّ الحاوية بدون طباعة الأسرار؛ لا تستعمل `docker compose config` من دون `--quiet` عند وجود مفاتيح حقيقية لأنه قد يطبع متغيرات البيئة. أول تفعيل مباشر لرقم B/L قد يستهلك رصيد ShipsGo؛ فحص صحة الـAPI وحده لا يثبت نجاح الاتصال بالمزوّد.
+
 على الـ VPS:
 
 ```bash

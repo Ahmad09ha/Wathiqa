@@ -13,6 +13,17 @@ $env:ASPNETCORE_ENVIRONMENT = 'Development'
 $keyRing = Join-Path $local 'import-dp-keys'
 New-Item -ItemType Directory -Force $keyRing | Out-Null
 $env:DataProtection__KeysPath = $keyRing
+# ShipsGo is configured ONLY on the server side. Developers may store their
+# credential in this gitignored local file or supply an environment variable.
+# An existing environment variable takes priority (e.g. for mock-provider tests).
+$shipsGoKeyFile = Join-Path $local 'shipsgo-api-key.txt'
+if ([string]::IsNullOrWhiteSpace($env:OceanTracking__ShipsGoApiKey) -and
+    (Test-Path -LiteralPath $shipsGoKeyFile -PathType Leaf)) {
+    $shipsGoKey = [IO.File]::ReadAllText($shipsGoKeyFile).Trim()
+    if ([string]::IsNullOrWhiteSpace($shipsGoKey)) { throw 'ShipsGo local credential file is empty.' }
+    $env:OceanTracking__ShipsGoApiKey = $shipsGoKey
+    Remove-Variable shipsGoKey
+}
 $project = Join-Path $root 'backend/Wathiqa.ImportApi'
 $dll = Join-Path $project 'bin/Debug/net10.0/Wathiqa.ImportApi.dll'
 if (-not (Test-Path $dll)) { throw 'New .NET 10 API is not built. Run dotnet build backend/Wathiqa.ImportApi' }
