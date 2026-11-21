@@ -5,6 +5,7 @@ import Link from "next/link";
 import {usePathname,useRouter} from "next/navigation";
 import {Activity,Building2,CalendarClock,LayoutDashboard,LogOut,Menu,ScrollText,ShieldCheck,Tags,Users,X} from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import {Badge} from "@/components/ui/badge";
 import {useToast} from "@/components/ToastProvider";
 import {resetImportCsrf} from "@/lib/importApi";
 import {ImportApiError,getPlatformMe,platformApi,PlatformIdentity} from "@/lib/platformApi";
@@ -77,7 +78,7 @@ export default function PlatformShell({title,description,children}: {
       <header className="pc-header"><div className="pc-header-title">
         <button type="button" className="pc-open-mobile" onClick={()=>setMobile(true)} aria-label="فتح القائمة"><Menu size={23}/></button>
         <div><div className="pc-breadcrumb">وثيقة / إدارة المنصة</div><h1>{title}</h1><p>{description}</p></div>
-      </div><span className="pc-role-chip"><ShieldCheck size={15}/> SuperAdmin</span></header>
+       </div><Badge variant="outline" className="pc-role-chip"><ShieldCheck size={15}/> SuperAdmin</Badge></header>
       <main className="pc-content">{children(account)}</main>
     </div>
   </div>;

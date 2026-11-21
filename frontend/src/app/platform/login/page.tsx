@@ -6,6 +6,8 @@ import {useRouter} from "next/navigation";
 import {ArrowLeft,LockKeyhole,ShieldCheck} from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import PasswordField from "@/components/PasswordField";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
 import {useToast} from "@/components/ToastProvider";
 import {ImportApiError,platformApi} from "@/lib/platformApi";
 import {resetImportCsrf} from "@/lib/importApi";
@@ -42,14 +44,14 @@ export default function PlatformLogin(){
       <span className="pc-eyebrow">تسجيل دخول آمن</span>
       <h2>مرحباً بعودتك</h2><p>الدخول منفصل عن حسابات التجار العادية؛ لا يمكنك استخدام حساب مدير شركة هنا.</p>
       <label htmlFor="platform-email">البريد الإلكتروني</label>
-      <input id="platform-email" required dir="ltr" type="email" maxLength={254} autoComplete="username"
-        placeholder="owner@example.com" value={email} onChange={e=>setEmail(e.target.value)}/>
+       <Input id="platform-email" required dir="ltr" type="email" maxLength={254} autoComplete="username"
+         placeholder="owner@example.com" value={email} onChange={e=>setEmail(e.target.value)}/>
       <label htmlFor="platform-password">كلمة المرور</label>
       <PasswordField id="platform-password" label="كلمة المرور" required dir="ltr" autoComplete="current-password"
         placeholder="••••••••••••••••" value={password} onChange={e=>setPassword(e.target.value)}/>
-      <button type="submit" className="pc-primary" disabled={busy}>
-        {busy?"جارٍ التحقق من الحساب...":"الدخول إلى إدارة المنصة"}<ArrowLeft size={18}/>
-      </button>
+       <Button type="submit" className="pc-primary" disabled={busy}>
+         {busy?"جارٍ التحقق من الحساب...":"الدخول إلى إدارة المنصة"}<ArrowLeft size={18}/>
+       </Button>
       <div className="pc-login-warning">لا يوجد تسجيل عام لحسابات SuperAdmin. يتم إنشاء الحساب الأول عبر إجراء إداري آمن من السيرفر فقط.</div>
     </form></div>
   </main>;

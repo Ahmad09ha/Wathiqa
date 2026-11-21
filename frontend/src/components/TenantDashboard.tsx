@@ -8,6 +8,9 @@ import {Activity,ArrowUpLeft,Building2,CalendarClock,CheckCircle2,
 import type {LucideIcon} from "lucide-react";
 import type {CurrentImportUser} from "@/lib/importApi";
 import {useToast} from "@/components/ToastProvider";
+import {Button} from "@/components/ui/button";
+import {Card} from "@/components/ui/card";
+import {Badge} from "@/components/ui/badge";
 import {loadDashboardEvents,loadDashboardOverview,type ActivityCategory,
   type DashboardActivityPage,type DashboardOverview,
   type DashboardPeriod} from "@/lib/dashboardApi";
@@ -44,8 +47,8 @@ function Metric({name,value,icon:Icon,detail,href,warning}:{
     <small>{name}</small><strong dir="auto">{typeof value==="number"?n(value):value}</strong>
     {detail&&<span className="im-stat-detail">{detail}</span>}</>;
   const cls="im-stat-card"+(warning?" im-stat-warning":"");
-  return href?<Link className={cls} href={href}>{content}</Link>
-    :<div className={cls}>{content}</div>;
+   return href?<Link className={cls} href={href}>{content}</Link>
+     :<Card className={cls+" gap-0 py-0"}>{content}</Card>;
 }
 function Group({eyebrow,title,subtitle,children}:{
   eyebrow:string;title:string;subtitle?:string;children:React.ReactNode;
@@ -153,8 +156,8 @@ export default function TenantDashboard({user}:{user:CurrentImportUser}){
           <select value={days} onChange={e=>changePeriod(Number(e.target.value) as DashboardPeriod)}>
             {periods.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}</select>
         </label>
-        <button type="button" onClick={refresh} disabled={loading||eventsLoading}>
-          <RefreshCw size={16}/> تحديث</button>
+         <Button type="button" variant="secondary" onClick={refresh} disabled={loading||eventsLoading}>
+           <RefreshCw size={16}/> تحديث</Button>
       </div>
     </div>
     {overviewError&&<div role="alert" className="im-dashboard-error"><CircleAlert size={18}/>
@@ -227,17 +230,17 @@ export default function TenantDashboard({user}:{user:CurrentImportUser}){
           <Metric icon={FileText} name="بوالص لم يصل أصلها" value={s.shipping.originalNotReceived}/>
         </div>
         <div className="im-dashboard-panels">
-          <div className="im-dashboard-panel">
+           <Card className="im-dashboard-panel gap-0 py-0">
             <header><strong>حالات الحاويات</strong><small>{n(s.containers.total)} حاوية</small></header>
             <Bar label="مخططة" value={s.containers.planned} total={s.containers.total} variant="planned"/>
             <Bar label="في البحر" value={s.containers.atSea} total={s.containers.total} variant="sea"/>
             <Bar label="بالميناء" value={s.containers.atPort} total={s.containers.total} variant="port"/>
             <Bar label="تم التسليم" value={s.containers.delivered} total={s.containers.total} variant="delivered"/>
-          </div>
-          <div className="im-dashboard-panel">
+           </Card>
+           <Card className="im-dashboard-panel gap-0 py-0">
             <header><strong>حركة آخر 14 يوماً</strong><small>طلبات وحاويات جديدة</small></header>
             <Trend points={s.trend}/>
-          </div>
+           </Card>
         </div>
       </Group>
       <Group eyebrow="المراقبة" title="التتبع والمستندات والشركاء">
@@ -266,7 +269,7 @@ export default function TenantDashboard({user}:{user:CurrentImportUser}){
       <header className="im-dashboard-activity-head"><div>
         <small>سجل موحّد للشركة</small><h2>الأحداث داخل الـ Tenant</h2>
         <p>الأحداث الفعلية الموثّقة، مرتبة من الأحدث مع تاريخ الإجراء واسم منفّذه.</p>
-      </div><strong>{n(events?.total??0)} حدث</strong></header>
+       </div><Badge variant="secondary">{n(events?.total??0)} حدث</Badge></header>
       <div className="im-dashboard-filters"><label>نوع النشاط
         <select aria-label="فلترة الأحداث" value={category}
           onChange={e=>changeCategory(e.target.value as ActivityCategory)}>

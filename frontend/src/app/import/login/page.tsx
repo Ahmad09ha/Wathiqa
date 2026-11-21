@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { LockKeyhole, ArrowLeft, ShieldCheck } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import PasswordField from "@/components/PasswordField";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
 import { useToast } from "@/components/ToastProvider";
 import { importApi, resetImportCsrf } from "@/lib/importApi";
 
@@ -51,14 +53,14 @@ export default function ImportLogin() {
           <h2>تسجيل الدخول</h2>
           <p>أدخل بيانات حسابك للوصول إلى مساحة شركتك.</p>
           <label htmlFor="import-email">البريد الإلكتروني</label>
-          <input id="import-email" type="email" dir="ltr" autoComplete="username" required maxLength={254}
-            placeholder="name@company.com" value={email} onChange={event => setEmail(event.target.value)}/>
+           <Input id="import-email" type="email" dir="ltr" autoComplete="username" required maxLength={254}
+             placeholder="name@company.com" value={email} onChange={event => setEmail(event.target.value)}/>
           <label htmlFor="import-password">كلمة المرور</label>
           <PasswordField id="import-password" label="كلمة المرور" dir="ltr" autoComplete="current-password" required
             placeholder="••••••••••••" value={password} onChange={event => setPassword(event.target.value)}/>
-          <button type="submit" className="btn primary im-login-submit" disabled={pending}>
-            {pending ? "جارٍ التحقق..." : "الدخول إلى وثيقة"} <ArrowLeft size={18}/>
-          </button>
+           <Button type="submit" className="btn primary im-login-submit" disabled={pending}>
+             {pending ? "جارٍ التحقق..." : "الدخول إلى وثيقة"} <ArrowLeft size={18}/>
+           </Button>
           <div className="im-login-hint">الدخول متاح للحسابات التي أنشأها مدير الشركة فقط.</div>
           <Link href="/import/join" className="im-join-back">لديك دعوة للانضمام؟ فعّل حسابك</Link>
         </form>

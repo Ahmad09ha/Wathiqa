@@ -5,6 +5,9 @@ import {Anchor,ExternalLink,MapPin,RefreshCw,Ship,ShipWheel} from "lucide-react"
 import {useToast} from "@/components/ToastProvider";
 import {listShipments,Shipment} from "@/lib/logisticsApi";
 import {listTracking,registerTracking,refreshTracking,TrackingReference} from "@/lib/trackingApi";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Badge} from "@/components/ui/badge";
 
 const date=(value:string|null|undefined)=>{
   if(!value)return "غير متوفر";
@@ -97,8 +100,8 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
         <h2><Ship size={21}/> تتبع الشحنة</h2>
         <p>التتبع المباشر عبر ShipsGo. تُحسب كل بوليصة مفعّلة مرة واحدة ضمن باقتك، حتى لو تحتوي على عدة حاويات.</p>
       </div>
-      <button type="button" className="btn btn-outline" onClick={()=>void loadTracking()} disabled={busy}>
-        <RefreshCw size={16}/> إعادة تحميل المحفوظ</button>
+       <Button type="button" variant="outline" className="btn btn-outline" onClick={()=>void loadTracking()} disabled={busy}>
+         <RefreshCw size={16}/> إعادة تحميل المحفوظ</Button>
     </div>
     {loading?<div className="im-empty">جارٍ تحميل بيانات الشحن...</div>:
       shipments.length===0?<div className="im-info-strip"><Anchor size={19}/><p>سجّل بوليصة شحن أولاً من تبويب البوليصة، ثم أضف رقم التتبع هنا.</p></div>:
@@ -120,19 +123,19 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
               </select>
             </label>
             <label>{type==="CT"?"رقم الحاوية":"رقم البوليصة"}
-              <input required dir="ltr" maxLength={90} value={number}
-                placeholder={type==="CT"?"MSCU1234567":shipment?.blNumber||"B/L"}
-                onChange={e=>setNumber(e.target.value)}/></label>
+               <Input required dir="ltr" maxLength={90} value={number}
+                 placeholder={type==="CT"?"MSCU1234567":shipment?.blNumber||"B/L"}
+                 onChange={e=>setNumber(e.target.value)}/></label>
             {type==="CT"&&shipment&&shipment.containers.length>0&&<label>اختيار حاوية مسجلة
               <select value="" onChange={e=>setNumber(e.target.value)}>
                 <option value="">اختر من حاويات البوليصة</option>
                 {shipment.containers.map(c=><option key={c.id} value={c.number}>{c.number}</option>)}
               </select></label>}
             <label>شركة الشحن في ShipsGo <small>الاسم المطابق لقائمة ShipsGo، أو اتركه فارغاً لاستخدام OTHERS</small>
-              <input dir="ltr" maxLength={80} placeholder="MSC" value={carrier}
-                onChange={e=>setCarrier(e.target.value)}/></label>
-            <button type="submit" className="btn primary" disabled={busy||disabled||!number.trim()}>
-              حفظ رقم التتبع</button>
+               <Input dir="ltr" maxLength={80} placeholder="MSC" value={carrier}
+                 onChange={e=>setCarrier(e.target.value)}/></label>
+             <Button type="submit" className="btn primary" disabled={busy||disabled||!number.trim()}>
+               حفظ رقم التتبع</Button>
           </form>
         </div>
         {!configured&&<div className="im-info-strip">
@@ -143,15 +146,15 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
             {references.map(r=><button key={r.id} type="button" role="tab"
               aria-selected={r.id===selectedId} className={"im-logistics-tab "+(r.id===selectedId?"active":"")}
               onClick={()=>setSelectedId(r.id)}>
-              <span dir="ltr">{r.referenceNumber}</span>
+               <Badge variant="secondary" dir="ltr">{r.referenceNumber}</Badge>
               <small>{r.referenceType==="CT"?"حاوية":"بوليصة"} · {r.lastSyncedAtUtc?"بيانات محفوظة":"لم تتم المزامنة"}</small>
             </button>)}
           </div>
           {current&&<div className="im-track-result">
             <div className="im-logistics-details-toolbar">
               <span>آخر نتيجة معتمدة من المزوّد</span>
-              <button type="button" className="btn primary" disabled={!configured||busy||disabled}
-                onClick={()=>void refresh()}><RefreshCw size={16}/>{busy?"جارٍ الاستعلام...":"تحديث من شركة الشحن"}</button>
+               <Button type="button" className="btn primary" disabled={!configured||busy||disabled}
+                 onClick={()=>void refresh()}><RefreshCw size={16}/>{busy?"جارٍ الاستعلام...":"تحديث من شركة الشحن"}</Button>
             </div>
             {current.lastErrorCode&&<p className="im-track-warning">آخر محاولة لم تنجح ({current.lastErrorCode}). تبقى آخر بيانات محفوظة متاحة.</p>}
             <p className="im-track-source">آخر مزامنة: {date(current.lastSyncedAtUtc)}. حالة التتبع والموقع ليست بديلاً عن وثائق الشحن الرسمية.</p>
