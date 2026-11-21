@@ -3,9 +3,12 @@
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpLeft, ClipboardList, FileText, Filter, Plus, Search, Trash2, Ship, Info, RotateCcw } from "lucide-react";
+import { ArrowUpLeft, ClipboardList, FileText, Filter, Plus, Search, Trash2, Ship, Info, RotateCcw, Package, Truck, CheckCircle2, FileCheck2, SlidersHorizontal, ChevronDown, ChevronUp, Clock3, AlertTriangle } from "lucide-react";
 import ImportShell from "@/components/ImportShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import {Button} from "@/components/ui/button";
+import {Card} from "@/components/ui/card";
+import {Badge} from "@/components/ui/badge";
 import { useToast } from "@/components/ToastProvider";
 import {
   fetchImportCompanyOptions, fetchOrders, importApi, ImportCompanyOption,
@@ -64,7 +67,12 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
  const [loading,setLoading]=useState(true);
  const [refresh,setRefresh]=useState(0);
  const [deleting,setDeleting]=useState<OrderListItem|null>(null);
- const [busy,setBusy]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [showAdvanced,setShowAdvanced]=useState(()=>{
+    const initial=parseFilters(active);
+    return Boolean(initial.currency||initial.clearance||initial.payment||initial.overdue||
+      initial.status||initial.from||initial.to||initial.sort!=="newest");
+  });
  const page=Math.max(1,Math.min(100000,Number(active.get("page"))||1));
  const filters=useMemo(()=>parseFilters(active),[active]);
  const params=useMemo(()=>{
@@ -103,9 +111,12 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
   const empty=parseFilters(new URLSearchParams());
   setDraft(empty);navigate(empty);
  }
-  function quickAtSea(){navigate({...filters,arrival:"AtSea",clearance:""});}
-  function quickOverdue(){navigate({...filters,overdue:"true",payment:""});}
-  function quickDeliveredUnpaid(){navigate({...filters,arrival:"Delivered",payment:"Outstanding",overdue:""});}
+   function quickAtSea(){navigate({...filters,arrival:filters.arrival==="AtSea"?"":"AtSea",clearance:""});}
+   function quickOverdue(){navigate({...filters,overdue:filters.overdue==="true"?"":"true",payment:""});}
+   function quickDeliveredUnpaid(){
+     const enabled=filters.arrival==="Delivered"&&filters.payment==="Outstanding";
+     navigate({...filters,arrival:enabled?"":"Delivered",payment:enabled?"":"Outstanding",overdue:""});
+   }
  async function deleteDraft(){
   if(!deleting||busy)return;
   setBusy(true);
@@ -117,96 +128,149 @@ function OrdersContent({canManagePayments}:{canManagePayments:boolean}){
    notify({kind:"error",title:"تعذّر حذف المسودة",description:(error as Error).message});
   }finally{setBusy(false);}
  }
- const pages=data?Math.max(1,Math.ceil(data.total/data.pageSize)):1;
- const hasFilters=Object.entries(filters).some(([key,value])=>Boolean(value)&&!(key==="sort"&&value==="newest"));
- return <>
-  <div className="im-section-header im-orders-top">
-   <div><small>المشتريات / سجلات التاجر</small><h2>طلبات الشراء</h2>
-    <p>بحث متقدم وفلاتر قابلة للمشاركة، مع متابعة الحاويات والتخليص حسب الوقائع المسجلة.</p>
+  const pages=data?Math.max(1,Math.ceil(data.total/data.pageSize)):1;
+  const hasFilters=Object.entries(filters).some(([key,value])=>Boolean(value)&&!(key==="sort"&&value==="newest"));
+  const currentItems=data?.items??[];
+  const stats=[
+    {title:"الطلبات المطابقة",value:data?.total??"—",description:"حسب الفلاتر المختارة",icon:Package,tone:"navy"},
+    {title:"في البحر أو الميناء",value:data?currentItems.filter(order=>order.arrivalStatus==="AtSea"||order.arrivalStatus==="AtPort").length:"—",
+      description:"ضمن الصفحة الحالية",icon:Truck,tone:"teal"},
+    {title:"قيد التخليص",value:data?currentItems.filter(order=>order.clearanceStatus==="InProgress"||order.clearanceStatus==="Partial").length:"—",
+      description:"ضمن الصفحة الحالية",icon:FileCheck2,tone:"blue"},
+    {title:"تم تسليمها",value:data?currentItems.filter(order=>order.arrivalStatus==="Delivered").length:"—",
+      description:"ضمن الصفحة الحالية",icon:CheckCircle2,tone:"green"},
+  ];
+  const appliedCount=Object.entries(filters).filter(([key,value])=>Boolean(value)&&!(key==="sort"&&value==="newest")).length;
+  return <>
+   <div className="im-section-header im-orders-top">
+    <div><small>إدارة المشتريات</small>
+     <p>جميع أوامر الشراء والشحنات وبيانات التخليص في مكان واحد.</p>
    </div>
     {canManagePayments&&<div className="im-order-create-actions">
       <Link className="btn btn-outline" href="/import/orders/from-file"><Plus size={17}/> إدخال من ملف</Link>
       <Link className="btn primary" href="/import/orders/new"><Plus size={17}/> طلب شراء جديد</Link>
     </div>}
-  </div>
-  {!canManagePayments&&<div className="im-info-strip im-order-readonly-notice">
-    <div><strong>صلاحية الاطلاع فقط</strong>
-      <p>يمكنك مشاهدة الأسعار والشحنات، أما إنشاء الطلب وتعديل أسعاره فيحتاج CanManagePayments.</p>
+   </div>
+   <section className="im-orders-stats" aria-label="ملخص الطلبات">
+     {stats.map(({title,value,description,icon:Icon,tone})=>
+       <Card key={title} className="im-orders-stat gap-0 py-0">
+         <span className={"im-orders-stat-icon tone-"+tone}><Icon size={20}/></span>
+         <div><span className="im-orders-stat-label">{title}</span>
+           <strong dir="auto">{value}</strong>
+           <small>{description}</small></div>
+       </Card>)}
+   </section>
+   {!canManagePayments&&<div className="im-info-strip im-order-readonly-notice">
+     <Info size={19}/><div><strong>صلاحية الاطلاع فقط</strong>
+       <p>يمكنك مشاهدة الأسعار والشحنات، أما إنشاء الطلب وتعديل أسعاره فيحتاج CanManagePayments.</p>
     </div>
   </div>}
    <div className="im-info-strip im-order-finance-pending">
      <Info size={19}/><div><strong>المدفوع والمتبقي حسب السجل المالي الحقيقي</strong>
      <p>الخطة لا تُحسب حوالة؛ المبالغ المعروضة تأتي من تخصيصات الحوالات المسجّلة فعلياً لكل طلب وعملته، والفروقات تبقى داخل الطلب.</p></div>
    </div>
-  <div className="im-table-shell">
-   <form className="im-table-toolbar im-order-toolbar im-report-filter" onSubmit={apply}>
-    <div className="im-search">
-     <Search size={18}/>
-     <input aria-label="البحث في الطلبات" placeholder="رقم الطلب، المورد، أو مرجع الفاتورة"
-      value={draft.q} onChange={e=>update("q",e.target.value)}/>
+   <div className="im-table-shell im-orders-results">
+    <div className="im-orders-filters-heading">
+      <div className="im-orders-filter-heading-icon"><SlidersHorizontal size={19}/></div>
+      <div><h2>تصفية الطلبات</h2><p>ابحث عن طلب، أو اختر المورّد وحالة الشحن. يمكنك توسيع الخيارات عند الحاجة.</p></div>
+      {appliedCount>0&&<Badge variant="secondary" className="im-orders-applied-count">{appliedCount} فلاتر نشطة</Badge>}
     </div>
-    <select className="im-filter-select" aria-label="فلتر المورّد" value={draft.supplierId}
-      onChange={e=>update("supplierId",e.target.value)}>
-     <option value="">كل المورّدين</option>
-     {suppliers.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
-    </select>
-    <select className="im-filter-select" aria-label="فلتر العملة" value={draft.currency}
-      onChange={e=>update("currency",e.target.value)}>
-     <option value="">كل العملات</option>
-     {["USD","EUR","CNY","TRY"].map(x=><option key={x} value={x}>{x}</option>)}
-    </select>
-    <select className="im-filter-select" aria-label="فلتر حالة الوصول" value={draft.arrival}
-      onChange={e=>update("arrival",e.target.value)}>
-     {arrivalOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
-    </select>
-     <select className="im-filter-select" aria-label="فلتر التخليص" value={draft.clearance}
-      onChange={e=>update("clearance",e.target.value)}>
-     {clearanceOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
-     </select>
-     <select className="im-filter-select" aria-label="فلتر حالة الدفع" value={draft.payment}
-       onChange={e=>update("payment",e.target.value)}>
-       <option value="">كل حالات الدفع</option><option value="Unpaid">غير مدفوع</option>
-       <option value="PartiallyPaid">دفع جزئي</option><option value="Paid">مدفوع للبضاعة</option>
-       <option value="Outstanding">المتبقي أكبر من صفر</option>
-     </select>
-     <select className="im-filter-select" aria-label="فلتر التأخير المالي" value={draft.overdue}
-       onChange={e=>update("overdue",e.target.value)}>
-       <option value="">كل الاستحقاقات</option><option value="true">دفعات متأخرة</option>
-     </select>
-     <select className="im-filter-select" aria-label="فلتر حالة الطلب" value={draft.status}
-       onChange={e=>update("status",e.target.value)}>
-       <option value="">كل حالات الطلب</option><option value="Draft">مسودة</option>
-       <option value="Closed">مغلق إدارياً</option><option value="Cancelled">ملغى</option>
-     </select>
-    <label className="im-report-date">من
-     <input type="date" aria-label="تاريخ الطلب من" value={draft.from} dir="ltr"
-      onChange={e=>update("from",e.target.value)}/>
-    </label>
-    <label className="im-report-date">إلى
-     <input type="date" aria-label="تاريخ الطلب إلى" value={draft.to} dir="ltr"
-      onChange={e=>update("to",e.target.value)}/>
-    </label>
-    <select className="im-filter-select" aria-label="ترتيب النتائج" value={draft.sort}
-      onChange={e=>update("sort",e.target.value)}>
-     <option value="newest">الأحدث أولاً</option><option value="oldest">الأقدم أولاً</option>
-     <option value="totalDesc">الأعلى قيمة</option><option value="totalAsc">الأقل قيمة</option>
-     <option value="eta">أقرب ETA مسجّل</option>
-    </select>
-    <div className="im-report-filter-actions">
-     <button type="submit" className="btn btn-outline"><Filter size={16}/> تطبيق</button>
-     <button type="button" className="btn btn-outline" onClick={reset}><RotateCcw size={15}/> مسح الفلاتر</button>
-    </div>
-   </form>
-   <div className="im-report-quick">
-    <span>فلاتر سريعة</span>
-    <button type="button" className={"im-report-quick-option "+(filters.arrival==="AtSea"?"active":"")}
-     onClick={quickAtSea}><Ship size={15}/> في البحر</button>
-    <Link href="/import/operations?view=freeTime" className="im-report-quick-option">مدة السماح</Link>
-    <Link href="/import/operations?view=missing" className="im-report-quick-option">المستندات الناقصة</Link>
-     <button type="button" className={filters.overdue==="true"?"active":""}
-       onClick={quickOverdue}>متأخرة بالدفع</button>
-     <button type="button" className={filters.arrival==="Delivered"&&filters.payment==="Outstanding"?"active":""}
-       onClick={quickDeliveredUnpaid}>وصلت ولم تُسدّد بالكامل</button>
+    <form className="im-table-toolbar im-order-toolbar im-report-filter im-orders-filter-form" onSubmit={apply}>
+     <div className="im-orders-filter-main">
+       <label className="im-orders-field im-orders-search-field"><span>رقم الطلب أو المورّد أو مرجع الفاتورة</span>
+         <span className="im-search"><Search size={18}/>
+           <input aria-label="البحث في الطلبات" placeholder="ابحث في طلبات الشراء..."
+             value={draft.q} onChange={e=>update("q",e.target.value)}/></span>
+       </label>
+       <label className="im-orders-field"><span>المورّد</span>
+         <select className="im-filter-select" aria-label="فلتر المورّد" value={draft.supplierId}
+           onChange={e=>update("supplierId",e.target.value)}>
+           <option value="">كل المورّدين</option>
+           {suppliers.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+         </select>
+       </label>
+       <label className="im-orders-field"><span>حالة الوصول</span>
+         <select className="im-filter-select" aria-label="فلتر حالة الوصول" value={draft.arrival}
+           onChange={e=>update("arrival",e.target.value)}>
+           {arrivalOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+         </select>
+       </label>
+     </div>
+     <div className="im-orders-filter-advanced" id="im-orders-advanced-filters" hidden={!showAdvanced}>
+       <label className="im-orders-field"><span>العملة</span>
+         <select className="im-filter-select" aria-label="فلتر العملة" value={draft.currency}
+           onChange={e=>update("currency",e.target.value)}>
+           <option value="">كل العملات</option>
+           {["USD","EUR","CNY","TRY"].map(x=><option key={x} value={x}>{x}</option>)}
+         </select>
+       </label>
+       <label className="im-orders-field"><span>التخليص الجمركي</span>
+         <select className="im-filter-select" aria-label="فلتر التخليص" value={draft.clearance}
+           onChange={e=>update("clearance",e.target.value)}>
+           {clearanceOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+         </select>
+       </label>
+       <label className="im-orders-field"><span>حالة الدفع</span>
+         <select className="im-filter-select" aria-label="فلتر حالة الدفع" value={draft.payment}
+           onChange={e=>update("payment",e.target.value)}>
+           <option value="">كل حالات الدفع</option><option value="Unpaid">غير مدفوع</option>
+           <option value="PartiallyPaid">دفع جزئي</option><option value="Paid">مدفوع للبضاعة</option>
+           <option value="Outstanding">المتبقي أكبر من صفر</option>
+         </select>
+       </label>
+       <label className="im-orders-field"><span>الاستحقاقات</span>
+         <select className="im-filter-select" aria-label="فلتر التأخير المالي" value={draft.overdue}
+           onChange={e=>update("overdue",e.target.value)}>
+           <option value="">كل الاستحقاقات</option><option value="true">دفعات متأخرة</option>
+         </select>
+       </label>
+       <label className="im-orders-field"><span>حالة الطلب</span>
+         <select className="im-filter-select" aria-label="فلتر حالة الطلب" value={draft.status}
+           onChange={e=>update("status",e.target.value)}>
+           <option value="">كل حالات الطلب</option><option value="Draft">مسودة</option>
+           <option value="Closed">مغلق إدارياً</option><option value="Cancelled">ملغى</option>
+         </select>
+       </label>
+       <label className="im-orders-field"><span>من تاريخ</span>
+         <input type="date" aria-label="تاريخ الطلب من" value={draft.from} dir="ltr"
+           onChange={e=>update("from",e.target.value)}/>
+       </label>
+       <label className="im-orders-field"><span>إلى تاريخ</span>
+         <input type="date" aria-label="تاريخ الطلب إلى" value={draft.to} dir="ltr"
+           onChange={e=>update("to",e.target.value)}/>
+       </label>
+       <label className="im-orders-field"><span>ترتيب النتائج</span>
+         <select className="im-filter-select" aria-label="ترتيب النتائج" value={draft.sort}
+           onChange={e=>update("sort",e.target.value)}>
+           <option value="newest">الأحدث أولاً</option><option value="oldest">الأقدم أولاً</option>
+           <option value="totalDesc">الأعلى قيمة</option><option value="totalAsc">الأقل قيمة</option>
+           <option value="eta">أقرب ETA مسجّل</option>
+         </select>
+       </label>
+     </div>
+     <div className="im-orders-filter-footer">
+       <button className="im-orders-advanced-toggle" type="button" aria-expanded={showAdvanced}
+         aria-controls="im-orders-advanced-filters" onClick={()=>setShowAdvanced(open=>!open)}>
+         <SlidersHorizontal size={16}/>{showAdvanced?"إخفاء الفلاتر المتقدمة":"المزيد من الفلاتر"}
+         {showAdvanced?<ChevronUp size={15}/>:<ChevronDown size={15}/>}
+       </button>
+       <div className="im-report-filter-actions">
+         <Button type="button" variant="outline" className="btn btn-outline" onClick={reset}>
+           <RotateCcw size={15}/> مسح الفلاتر</Button>
+         <Button type="submit" className="btn primary"><Filter size={16}/> تطبيق الفلاتر</Button>
+       </div>
+     </div>
+    </form>
+    <div className="im-report-quick">
+     <span>فلاتر سريعة</span>
+     <button type="button" className={"im-report-quick-option "+(filters.arrival==="AtSea"?"active":"")}
+      onClick={quickAtSea}><Ship size={15}/> في البحر</button>
+     <Link href="/import/operations?view=freeTime" className="im-report-quick-option"><Clock3 size={15}/> مدة السماح</Link>
+     <Link href="/import/operations?view=missing" className="im-report-quick-option"><FileText size={15}/> المستندات الناقصة</Link>
+      <button type="button" className={filters.overdue==="true"?"active":""}
+        onClick={quickOverdue}><AlertTriangle size={15}/> متأخرة بالدفع</button>
+      <button type="button" className={filters.arrival==="Delivered"&&filters.payment==="Outstanding"?"active":""}
+        onClick={quickDeliveredUnpaid}><Package size={15}/> وصلت ولم تُسدّد بالكامل</button>
    </div>
    {loading?<div className="im-empty">جارٍ تحميل طلبات الشراء...</div>:
     !data||data.items.length===0?<div className="im-empty">
