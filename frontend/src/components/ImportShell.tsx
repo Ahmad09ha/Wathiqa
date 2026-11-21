@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpenText, Building2, LogOut, Menu, ShieldCheck, X, LayoutGrid, Users, ChevronLeft, ClipboardList, Ship, Anchor } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import {Badge} from "@/components/ui/badge";
+import {Button} from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { CurrentImportUser, ImportApiError, currentImportUser, importApi, resetImportCsrf } from "@/lib/importApi";
 import {hasFeature} from "@/lib/featurePermissions";
@@ -118,21 +120,21 @@ export default function ImportShell({
             <span className="im-user-avatar">{user.displayName.slice(0,1)}</span>
             <div><strong dir="auto">{user.displayName}</strong><small>{user.role === "Admin" ? "مدير الشركة" : "موظف"}</small></div>
           </div>
-          <button type="button" className="im-logout" onClick={() => void logout()}>
-            <LogOut size={17}/> تسجيل الخروج
-          </button>
+           <Button type="button" variant="ghost" className="im-logout" onClick={() => void logout()}>
+             <LogOut size={17}/> تسجيل الخروج
+           </Button>
         </div>
       </aside>
       <div className="im-main">
         <header className="im-header">
-          <button type="button" className="im-menu-btn" onClick={() => setMenuOpen(true)} aria-label="فتح القائمة"><Menu size={22}/></button>
+           <Button type="button" variant="outline" className="im-menu-btn" onClick={() => setMenuOpen(true)} aria-label="فتح القائمة"><Menu size={22}/></Button>
           <div className="im-heading">
             <div className="im-crumb">مساحة العمل <ChevronLeft size={12}/> {title}</div>
             <h1>{title}</h1><p>{description}</p>
           </div>
-          <div className="im-header-status">
-            <ShieldCheck size={17}/><span>{user.role === "Admin" ? "حساب مدير" : "حساب موظف"}</span>
-          </div>
+           <Badge variant="outline" className="im-header-status">
+             <ShieldCheck size={17}/><span>{user.role === "Admin" ? "حساب مدير" : "حساب موظف"}</span>
+           </Badge>
         </header>
         <main className="im-content">{canOpenSection ? children(user) :
           <div className="im-empty" role="alert"><ShieldCheck size={30}/>

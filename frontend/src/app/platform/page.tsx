@@ -4,6 +4,8 @@ import {useCallback,useEffect,useState} from "react";
 import Link from "next/link";
 import {ArrowUpLeft,Building2,CalendarClock,ShieldCheck,Users} from "lucide-react";
 import PlatformShell from "@/components/PlatformShell";
+import {Card} from "@/components/ui/card";
+import {Badge} from "@/components/ui/badge";
 import {useToast} from "@/components/ToastProvider";
 import {getPlatformOverview,getPlatformTenants,PlatformOverview,PlatformTenant} from "@/lib/platformApi";
 
@@ -24,18 +26,18 @@ function OverviewPage(){
     finally{setLoading(false);}
   },[notify]);useEffect(()=>{void load();},[load]);
   return <>
-    <div className="pc-intro"><div><span className="pc-eyebrow">PLATFORM OPERATIONS</span>
+     <Card className="pc-intro gap-0 py-0"><div><span className="pc-eyebrow">PLATFORM OPERATIONS</span>
       <h2>كل التجار، إدارة واحدة.</h2>
       <p>تتحكم بوصول كل شركة وتراجع المستخدمين وسجل التغييرات. معلومات الاستيراد الخاصة بالتجار تبقى في مساحاتهم فقط.</p>
-    </div><div className="pc-intro-icon"><ShieldCheck size={37}/></div></div>
+     </div><div className="pc-intro-icon"><ShieldCheck size={37}/></div></Card>
     <div className="pc-statline">
       {([
         {label:"إجمالي التجار",value:overview?.totalTenants??"—",icon:Building2},
         {label:"شركات نشطة",value:overview?.active??"—",icon:ShieldCheck},
         {label:"اشتراكات وصول منتهية",value:overview?.expired??"—",icon:CalendarClock},
         {label:"حسابات المستخدمين",value:overview?.accounts??"—",icon:Users}
-      ]).map(({label,value,icon:Icon})=><div key={label} className="pc-stat">
-        <span><Icon size={17}/>{label}</span><strong dir="ltr">{value}</strong></div>)}
+       ]).map(({label,value,icon:Icon})=><Card key={label} className="pc-stat gap-0 py-0">
+         <span><Icon size={17}/>{label}</span><strong dir="ltr">{value}</strong></Card>)}
     </div>
     <section className="pc-panel"><div className="pc-panel-heading">
       <div><h3>أحدث الشركات</h3><p>حالة الوصول الفعلية للحسابات في المنصة</p></div>
@@ -47,7 +49,7 @@ function OverviewPage(){
       const [label,status]=state(x);return <tr key={x.id}>
         <td><strong dir="auto">{x.name}</strong><small dir="ltr">{x.slug}</small></td>
         <td>{x.userCount}</td><td>{dateText(x.accessExpiresAtUtc)}</td>
-        <td><span className={"pc-status "+status}>{label}</span></td>
+         <td><Badge variant={status==="active"?"secondary":"outline"} className={"pc-status "+status}>{label}</Badge></td>
         <td><Link className="pc-table-link" href={"/platform/tenants/"+x.id}>إدارة <ArrowUpLeft size={14}/></Link></td>
       </tr>;
     })}</tbody></table></div>

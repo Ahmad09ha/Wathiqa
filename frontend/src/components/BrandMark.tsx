@@ -5,7 +5,7 @@
         stroke="currentColor" strokeWidth="2.9" strokeLinejoin="round"/>
       <path d="M37 13v8h8" stroke="currentColor" strokeWidth="2.8" strokeLinejoin="round"/>
       <path d="M24 32c3-4 8-3 9 1 1 4-2 7-6 7-2 0-4-.5-6-2.5m6 2.5h12"
-        stroke="currentColor" strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round"/>
+        stroke="#0DB1C2" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round"/>
     </svg>
   );
 }

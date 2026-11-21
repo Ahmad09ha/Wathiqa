@@ -10,26 +10,34 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
-  --background: #f6f5f1;
-  --foreground: #26332f;
+  --radius: 0.75rem;
+  --background: #f4f8fc;
+  --foreground: #102f53;
   --card: #ffffff;
-  --card-foreground: #26332f;
+  --card-foreground: #102f53;
   --popover: #ffffff;
-  --popover-foreground: #26332f;
-  --primary: #245245;
+  --popover-foreground: #102f53;
+  --primary: #067f92;
   --primary-foreground: #ffffff;
-  --secondary: #edf3ef;
-  --secondary-foreground: #245245;
+  --secondary: #e8f7fa;
+  --secondary-foreground: #0a4b70;
   /* Avoid collisions with legacy globals.css --muted and --accent. */
-  --wui-muted: #f0f3ed;
-  --muted-foreground: #72847a;
-  --wui-accent: #e6f0e8;
-  --accent-foreground: #245245;
+  --wui-muted: #eef4f9;
+  --muted-foreground: #647e93;
+  --wui-accent: #e6f6fa;
+  --accent-foreground: #0a4b70;
   --destructive: #ab4c43;
-  --border: #dfe8df;
-  --input: #d8e3d9;
-  --ring: #81ae92;
+  --border: #dce7ef;
+  --input: #cedfe8;
+  --ring: #50b7c5;
+  --sidebar: #0a285a;
+  --sidebar-foreground: #e7f8ff;
+  --sidebar-primary: #067f92;
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: #164873;
+  --sidebar-accent-foreground: #f0fbff;
+  --sidebar-border: #285077;
+  --sidebar-ring: #54d3de;
 }
 
 @theme inline {
@@ -51,6 +59,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

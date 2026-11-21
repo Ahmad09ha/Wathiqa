@@ -1,4 +1,5 @@
 ﻿import "./platform.css";
+import "../engtex-theme.css";
 
 export const metadata = {
   title: "التحكم بالمنصة | وثيقة",
