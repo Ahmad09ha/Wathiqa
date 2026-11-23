@@ -333,7 +333,7 @@ const ArabicErrors: Record<string, string> = {
   ,tracking_provider_ambiguous_registration: "ShipsGo استلم طلباً لكن رقم تأكيده غير واضح؛ لن نكرره كي لا يتم الخصم مرتين."
   ,tracking_bl_change_requires_reconciliation: "لا يمكن تغيير رقم البوليصة بعد تفعيل التتبع المدفوع. اطلب مراجعة التتبع من مسؤول المنصة."
   ,platform_schema_upgrade_required: "قاعدة بيانات المنصة لم تُحدَّث بعد لإضافة حدود تتبّع البوالص. يلزم تطبيق ترحيلات قاعدة البيانات على الخادم من مسؤول النشر."
-  ,tracking_invalid_carrier: "رمز شركة الشحن يجب أن يكون من حرفين إلى 12 حرفاً أو رقماً."
+  ,tracking_invalid_carrier: "اختر شركة شحن مدعومة من ShipsGo."
   ,tracking_reference_conflict: "رقم التتبع مسجل بالفعل. أعد تحميل البيانات."
   ,tracking_not_configured: "خدمة التتبع البحري غير مفعّلة على السيرفر."
   ,tracking_provider_auth_failed: "مفتاح مزوّد التتبع غير صالح أو غير مخوّل."
@@ -342,6 +342,9 @@ const ArabicErrors: Record<string, string> = {
   ,tracking_provider_no_data: "لم يجد مزوّد التتبع بيانات لهذا الرقم بعد."
   ,tracking_provider_invalid_response: "أعاد مزوّد التتبع بيانات غير متوقعة."
   ,tracking_provider_timeout: "انتهت مهلة استجابة مزوّد التتبع."
+  ,tracking_v2_not_configured: "مفتاح ShipsGo V2 غير مضبوط على الخادم."
+  ,tracking_reconciliation_not_needed: "لا يوجد تفعيل معلّق يحتاج استعادة لهذه الشحنة."
+  ,tracking_reconciliation_not_found: "لم يُعثر على تسجيل مطابق ومؤكد لدى ShipsGo. لن نكرر طلباً مدفوعاً؛ راجع حساب ShipsGo أولاً."
   ,tracking_refresh_too_soon: "تم طلب تحديث قريباً. انتظر مدة التحديث قبل طلب استعلام جديد."
 };
 const InvitationIdentityErrors: Record<string, string> = {

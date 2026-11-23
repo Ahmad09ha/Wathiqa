@@ -107,6 +107,7 @@ builder.Services.AddDbContext<ImportDb>(options => options.UseNpgsql(connection)
 builder.Services.AddSingleton<IUploadThreatScanner,ClamAvUploadThreatScanner>();
 builder.Services.AddSingleton<IPrivateDocumentStore,PrivateDocumentStore>();
 builder.Services.AddSingleton<ShipsGoTrackingClient>();
+builder.Services.AddSingleton<ShipsGoV2Client>();
 builder.Services.Configure<FormOptions>(options=>{
     options.MultipartBodyLengthLimit=PrivateDocumentStore.MaxRequestBytes;
     options.MemoryBufferThreshold=64*1024;
@@ -310,6 +311,7 @@ app.UseAuthentication();
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api")
+        && context.Request.Path != "/api/tracking/provider-webhook"
         && !HttpMethods.IsGet(context.Request.Method)
         && !HttpMethods.IsHead(context.Request.Method)
         && !HttpMethods.IsOptions(context.Request.Method))

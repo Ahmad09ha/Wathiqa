@@ -50,7 +50,7 @@ async function login(s,endpoint,user,pwd){
   s.csrf=(await api(s,"/api/auth/csrf")).data.token;
 }
 async function mock(){
-  const response=await fetch("http://127.0.0.1:5099/__qa_stats",{signal:AbortSignal.timeout(7000)});
+  const response=await fetch("http://127.0.0.1:5098/__qa_stats",{signal:AbortSignal.timeout(7000)});
   assert.equal(response.status,200);
   return response.json();
 }
@@ -123,15 +123,15 @@ try{
     }),201,"B/L includes a registered ISO container");
   fixture.containerIds.push(container.id);persist();
   const refBL=expect(await api(merchant,"/api/shipments/"+bls[0].id+"/tracking",
-    "POST",{referenceType:"BL",referenceNumber:bls[0].blNumber,carrierCode:"MSC"}),
+    "POST",{referenceType:"BL",referenceNumber:bls[0].blNumber,carrierCode:"MSCU"}),
     201,"Register first B/L reference (no ShipsGo credit)");
   fixture.trackingIds.push(refBL.id);persist();
   const refCT=expect(await api(merchant,"/api/shipments/"+bls[0].id+"/tracking",
-    "POST",{referenceType:"CT",referenceNumber:container.number,carrierCode:"MSC"}),
+    "POST",{referenceType:"CT",referenceNumber:container.number,carrierCode:"MSCU"}),
     201,"Register container of first B/L (still no ShipsGo credit)");
   fixture.trackingIds.push(refCT.id);persist();
   const refSecond=expect(await api(merchant,"/api/shipments/"+bls[1].id+"/tracking",
-    "POST",{referenceType:"BL",referenceNumber:bls[1].blNumber,carrierCode:"MSC"}),
+    "POST",{referenceType:"BL",referenceNumber:bls[1].blNumber,carrierCode:"MSCU"}),
     201,"Register second B/L reference");
   fixture.trackingIds.push(refSecond.id);persist();
   const editable=expect(await api(merchant,"/api/shipments/"+bls[1].id),
@@ -168,7 +168,7 @@ try{
   assert.equal(after.quota.used,1);assert.equal(after.quota.remaining,0);
   const sameBill=expect(await api(merchant,"/api/tracking/"+refCT.id+"/refresh","POST"),
     200,"Container shares same ShipsGo MBL tracking, with no extra credit");
-  assert.equal(sameBill.snapshot.voyage,"QA-01");
+  assert.equal(sameBill.snapshot.voyage,"A1");
   assert.equal((await mock()).posts,1);
   const blocked=await api(merchant,"/api/tracking/"+refSecond.id+"/refresh","POST");
   assert.equal(blocked.status,403);assert.equal(blocked.data.error,"tracking_quota_exceeded");
@@ -185,7 +185,7 @@ try{
   assert.equal(postRenew.quota.used,0);
   const second=expect(await api(merchant,"/api/tracking/"+refSecond.id+"/refresh","POST"),
     200,"Second B/L activates after subscription renewal");
-  assert.equal(second.snapshot.status,"IN_TRANSIT");
+  assert.equal(second.snapshot.status,"SAILING");
   assert.equal((await mock()).posts,2);
   const other=session();
   const demoB=demos.find(x=>x.slug==="demo-b");assert(demoB);

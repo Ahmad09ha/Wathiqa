@@ -18,8 +18,98 @@ public static class TrackingApi
         var tracking = app.MapGroup("/api/tracking")
             .RequireAuthorization("TenantMember");
 
+        // This is the only unsigned-session write route exempt from CSRF.
+        // Every request must instead prove possession of the separate webhook
+        // secret using ShipsGo's HMAC-SHA256 signature of the exact raw bytes.
+        app.MapPost("/api/tracking/provider-webhook", async (
+            HttpContext http, ImportDb db, ShipsGoV2Client v2, CancellationToken ct) =>
+        {
+            if (!v2.HasWebhookSecret) return Results.NotFound();
+            if (http.Request.ContentLength is > 4_000_000)
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            using var bytes = new MemoryStream();
+            var buffer = new byte[16384];
+            int read;
+            while ((read = await http.Request.Body.ReadAsync(buffer, ct)) > 0)
+            {
+                if (bytes.Length + read > 4_000_000)
+                    return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+                bytes.Write(buffer, 0, read);
+            }
+            if (!v2.VerifyWebhook(bytes.ToArray(),
+                    http.Request.Headers["X-Shipsgo-Webhook-Signature"].ToString()))
+                return Results.Unauthorized();
+            JsonDocument payload;
+            try { payload = JsonDocument.Parse(bytes.ToArray()); }
+            catch (JsonException) { return Bad("tracking_provider_invalid_response"); }
+            using (payload)
+            {
+                var root = payload.RootElement;
+                if (!root.TryGetProperty("event", out var evt) ||
+                    !evt.TryGetProperty("name", out var name) ||
+                    name.GetString() != "OCEAN.SHIPMENTS.SHIPMENT_UPDATED" ||
+                    http.Request.Headers["X-Shipsgo-Webhook-Name"].ToString() !=
+                        "OCEAN.SHIPMENTS.SHIPMENT_UPDATED" ||
+                    !root.TryGetProperty("shipment", out var shipment) ||
+                    !shipment.TryGetProperty("id", out var id) ||
+                    !id.TryGetInt64(out var numericId) || numericId <= 0)
+                    return Bad("tracking_provider_invalid_response");
+
+                TrackingSnapshot snapshot;
+                try { snapshot = ShipsGoV2Client.ParseSnapshot(shipment); }
+                catch (TrackingProviderException) { return Bad("tracking_provider_invalid_response"); }
+                var providerId = "v2:" + numericId;
+                // No cross-tenant lookups are exposed to the caller. The HMAC
+                // authenticated notification may update only paid, known IDs.
+                var usages = await db.SubscriptionTrackingUsages.IgnoreQueryFilters()
+                    .AsNoTracking().Where(x => x.ProviderRequestId == providerId)
+                    .Select(x => new { x.TenantId, x.ShipmentId }).Distinct().ToListAsync(ct);
+                if (usages.Count == 0) return Results.Ok(new { accepted = true });
+                foreach (var link in usages)
+                {
+                    var refs = await db.TrackingReferences.IgnoreQueryFilters()
+                        .Where(x => x.TenantId == link.TenantId &&
+                            x.ShipmentId == link.ShipmentId).ToListAsync(ct);
+                    foreach (var item in refs)
+                    {
+                        TrackingSnapshot? previous = null;
+                        try { previous = JsonSerializer.Deserialize<TrackingSnapshot>(item.SnapshotJson); }
+                        catch (JsonException) { /* Replace invalid cached snapshot. */ }
+                        if (DateTimeOffset.TryParse(previous?.ProviderUpdatedAt,
+                                out var oldAt) && DateTimeOffset.TryParse(
+                                snapshot.ProviderUpdatedAt, out var newAt) && newAt <= oldAt)
+                            continue;
+                        // Keep the last known map point when webhook has no
+                        // geojson; voyage details must not erase location data.
+                        var updated = snapshot with {
+                            Latitude = previous?.Latitude,
+                            Longitude = previous?.Longitude,
+                            PositionUpdatedAt = previous?.PositionUpdatedAt
+                        };
+                        item.SnapshotJson = JsonSerializer.Serialize(updated);
+                        item.ProviderStatus = updated.Status[..Math.Min(updated.Status.Length, 60)];
+                        item.LastSyncedAtUtc = DateTime.UtcNow;
+                        item.LastErrorCode = "";
+                        item.UpdatedAtUtc = DateTime.UtcNow;
+                    }
+                }
+                await db.SaveChangesAsync(ct);
+                return Results.Ok(new { accepted = true });
+            }
+        }).AllowAnonymous();
+
+        tracking.MapGet("/carriers", async (ShipsGoV2Client v2, CancellationToken ct) =>
+        {
+            if (!v2.IsConfigured)
+                return Results.Json(new { error = "tracking_v2_not_configured" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            try { return Results.Ok(await v2.ListCarriersAsync(ct)); }
+            catch (TrackingProviderException ex)
+            { return Results.Json(new { error = ex.Code }, statusCode: 502); }
+        });
+
         shipments.MapGet("/{shipmentId:guid}/tracking", async (
-            Guid shipmentId, ImportDb db, ShipsGoTrackingClient client) =>
+            Guid shipmentId, ImportDb db, ShipsGoTrackingClient client, ShipsGoV2Client v2) =>
         {
             if (!await db.Shipments.AnyAsync(x => x.Id == shipmentId))
                 return Results.NotFound();
@@ -36,7 +126,8 @@ public static class TrackingApi
                 .CountAsync(x => x.TrackingCycleId == subscription.TrackingCycleId);
             return Results.Ok(new
             {
-                configured = client.IsConfigured,
+                configured = client.IsConfigured || v2.IsConfigured,
+                v2Configured = v2.IsConfigured,
                 quota = new { limit = subscription?.MaxTrackedBills ?? 0,
                     used = usage, remaining = Math.Max(0,(subscription?.MaxTrackedBills ?? 0)-usage) },
                 provider = "ShipsGo",
@@ -72,7 +163,7 @@ public static class TrackingApi
             var carrier = (body.CarrierCode ?? "").Trim();
             if (carrier.Length > 0 &&
                 (carrier.Length > 80 ||
-                 !Regex.IsMatch(carrier, "^[A-Za-z0-9][A-Za-z0-9 .&-]{1,79}$")))
+                 !Regex.IsMatch(carrier, "^[A-Za-z0-9][A-Za-z0-9 .&_-]{1,79}$")))
                 return Bad("tracking_invalid_carrier");
 
             var existing = await db.TrackingReferences.SingleOrDefaultAsync(x =>
@@ -116,13 +207,51 @@ public static class TrackingApi
             }
         });
 
+        tracking.MapPost("/{id:guid}/reconcile", async (
+            Guid id, ImportDb db, ShipsGoV2Client v2, CancellationToken ct) =>
+        {
+            if (!v2.IsConfigured)
+                return Results.Json(new { error = "tracking_v2_not_configured" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            var item = await db.TrackingReferences.SingleOrDefaultAsync(x => x.Id == id, ct);
+            if (item is null) return Results.NotFound();
+            var usage = await db.SubscriptionTrackingUsages
+                .Where(x => x.ShipmentId == item.ShipmentId && x.ProviderRequestId == "" &&
+                    (x.State == "NeedsReview" || x.State == "Reserved"))
+                .OrderByDescending(x => x.CreatedAtUtc).FirstOrDefaultAsync(ct);
+            if (usage is null)
+                return Results.Conflict(new { error = "tracking_reconciliation_not_needed" });
+            var refs = await db.TrackingReferences.AsNoTracking()
+                .Where(x => x.ShipmentId == item.ShipmentId).ToListAsync(ct);
+            var containers = refs.Where(x => x.ReferenceType == "CT")
+                .Select(x => x.ReferenceNumber).Distinct().ToArray();
+            try
+            {
+                var recovered = await v2.FindExistingAsync(item.ShipmentId,
+                    usage.BlNumber, containers, ct);
+                if (recovered is null)
+                    return Results.Conflict(new { error = "tracking_reconciliation_not_found" });
+                usage.ProviderRequestId = recovered;
+                usage.State = "Active";
+                item.LastAttemptAtUtc = null;
+                item.LastErrorCode = "";
+                item.UpdatedAtUtc = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                return Results.Ok(Info(item));
+            }
+            catch (TrackingProviderException ex)
+            {
+                return Results.Json(new { error = ex.Code }, statusCode: 502);
+            }
+        });
+
         tracking.MapPost("/{id:guid}/refresh", async (
-            Guid id, ImportDb db, ShipsGoTrackingClient client,
+            Guid id, ImportDb db, ShipsGoTrackingClient client, ShipsGoV2Client v2,
             System.Security.Claims.ClaimsPrincipal principal, CancellationToken ct) =>
         {
             var item = await db.TrackingReferences.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (item is null) return Results.NotFound();
-            if (!client.IsConfigured)
+            if (!client.IsConfigured && !v2.IsConfigured)
                 return Results.Json(new { error = "tracking_not_configured" },
                     statusCode: StatusCodes.Status503ServiceUnavailable);
 
@@ -210,13 +339,25 @@ public static class TrackingApi
             {
                 if (freshActivation)
                 {
-                    var registered = await client.RegisterBillAsync(
-                        usage.BlNumber, item.CarrierCode,ct);
+                    // Only V2 may create new paid registrations. Legacy V1.2
+                    // remains read-only for previously paid provider IDs.
+                    if (!v2.IsConfigured)
+                        throw new TrackingProviderException("tracking_v2_not_configured", true);
+                    if (item.CarrierCode.Length > 0 &&
+                        !System.Text.RegularExpressions.Regex.IsMatch(
+                            item.CarrierCode.ToUpperInvariant(), "^(SG_)?[A-Z0-9]{4}$"))
+                        throw new TrackingProviderException("tracking_invalid_carrier", true);
+                    var registered = await v2.RegisterAsync(
+                        item.ReferenceType == "CT" ? "" : usage.BlNumber,
+                        item.ReferenceType == "CT" ? item.ReferenceNumber : null,
+                        item.CarrierCode.ToUpperInvariant(), item.ShipmentId, ct);
                     usage.ProviderRequestId = registered;
                     usage.State = "Active";
                     await db.SaveChangesAsync(ct);
                 }
-                var snapshot = await client.FetchAsync(usage.ProviderRequestId, ct);
+                var snapshot = ShipsGoV2Client.IsV2Id(usage.ProviderRequestId)
+                    ? await v2.FetchAsync(usage.ProviderRequestId, ct)
+                    : await client.FetchAsync(usage.ProviderRequestId, ct);
                 item.SnapshotJson = JsonSerializer.Serialize(snapshot);
                 item.ProviderStatus = snapshot.Status.Length == 0
                     ? "Unknown" : snapshot.Status[..Math.Min(snapshot.Status.Length, 60)];
@@ -232,7 +373,13 @@ public static class TrackingApi
                 if (freshActivation && usage.ProviderRequestId.Length == 0)
                 {
                     if (ex.Definitive)
+                    {
                         db.SubscriptionTrackingUsages.Remove(usage);
+                        // Definitively rejected requests cannot consume credits;
+                        // allow retry as soon as credentials/data are corrected.
+                        item.LastAttemptAtUtc = null;
+                        db.Entry(item).Property(x => x.LastAttemptAtUtc).IsModified = true;
+                    }
                     else
                         usage.State = "NeedsReview";
                 }

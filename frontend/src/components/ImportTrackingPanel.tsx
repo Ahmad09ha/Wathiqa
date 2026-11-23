@@ -4,7 +4,7 @@ import {FormEvent,useCallback,useEffect,useState} from "react";
 import {Anchor,ExternalLink,MapPin,RefreshCw,Ship,ShipWheel} from "lucide-react";
 import {useToast} from "@/components/ToastProvider";
 import {listShipments,Shipment} from "@/lib/logisticsApi";
-import {listTracking,registerTracking,refreshTracking,TrackingReference} from "@/lib/trackingApi";
+import {listTracking,listShipsGoCarriers,registerTracking,refreshTracking,reconcileTracking,TrackingReference} from "@/lib/trackingApi";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
@@ -16,7 +16,12 @@ const date=(value:string|null|undefined)=>{
 };
 const statusLabel=(code:string)=>{
   const names:Record<string,string>={PLANNED:"مخطط",IN_TRANSIT:"في البحر",
-    ARRIVED:"وصل",DELIVERED:"تم التسليم",COMPLETED:"مكتمل",PENDING:"بانتظار بيانات"};
+    ARRIVED:"وصلت الباخرة",DELIVERED:"تم التسليم",COMPLETED:"مكتمل",PENDING:"بانتظار بيانات",
+    NEW:"جديدة",INPROGRESS:"بانتظار معلومات الناقل",BOOKED:"محجوزة",
+    LOADED:"تم التحميل",SAILING:"في البحر",DISCHARGED:"تم التفريغ",
+    UNTRACKED:"لا تتوفر معلومات تتبع",GATE_IN:"دخلت الميناء",
+    GATE_OUT:"خرجت من الميناء",EMPTY_RETURN:"أعيدت الحاوية الفارغة",
+    EMPTY_SHIPPER:"الحاوية الفارغة لدى الشاحن",UNKNOWN:"غير معروف"};
   return names[code.toUpperCase()]||code||"غير معروف";
 };
 
@@ -28,6 +33,8 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
   const [shipmentId,setShipmentId]=useState("");
   const [references,setReferences]=useState<TrackingReference[]>([]);
   const [configured,setConfigured]=useState(false);
+  const [v2Configured,setV2Configured]=useState(false);
+  const [carriers,setCarriers]=useState<{scac:string;name:string}[]>([]);
   const [quota,setQuota]=useState({limit:0,used:0,remaining:0});
   const [type,setType]=useState<"CT"|"BL">("BL");
   const [number,setNumber]=useState("");
@@ -49,14 +56,24 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
     try{
       const result=await listTracking(shipmentId);
       setConfigured(result.configured);
+      setV2Configured(result.v2Configured);
       setQuota(result.quota);
       setReferences(result.records);
       setSelectedId(prev=>result.records.some(r=>r.id===prev)?prev:result.records[0]?.id||"");
     }catch(e){notify({kind:"error",title:"تعذّر تحميل التتبع",description:(e as Error).message});}
   },[shipmentId,notify]);
   useEffect(()=>{void loadTracking();},[loadTracking]);
+  useEffect(()=>{
+    if(!v2Configured)return;
+    let active=true;
+    void listShipsGoCarriers().then(data=>{if(active)setCarriers(data);})
+      .catch(e=>notify({kind:"error",title:"تعذّر تحميل شركات الشحن",description:(e as Error).message}));
+    return()=>{active=false;};
+  },[v2Configured,notify]);
   const shipment=shipments.find(x=>x.id===shipmentId);
   const current=references.find(x=>x.id===selectedId);
+  useEffect(()=>{setCarrier(current?.carrierCode||"");},
+    [selectedId,current?.carrierCode]);
   async function add(event:FormEvent){
     event.preventDefault();
     if(!shipmentId||busy||disabled)return;
@@ -81,6 +98,29 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
     }catch(e){notify({kind:"error",title:"تعذّر جلب التتبع",description:(e as Error).message});}
     finally{setBusy(false);}
   }
+  async function correctCarrier(){
+    if(!current||busy||disabled||!v2Configured)return;
+    setBusy(true);
+    try{
+      await registerTracking(shipmentId,{referenceType:current.referenceType,
+        referenceNumber:current.referenceNumber,carrierCode:carrier});
+      await loadTracking();
+      notify({kind:"success",title:"تم تحديث شركة الشحن المحفوظة",
+        description:"إذا كان التتبع مفعّلاً سابقاً، لن يؤدي التعديل إلى تغيير التسجيل لدى ShipsGo."});
+    }catch(e){notify({kind:"error",title:"تعذّر تعديل شركة الشحن",description:(e as Error).message});}
+    finally{setBusy(false);}
+  }
+  async function reconcile(){
+    if(!current||busy||disabled||!v2Configured)return;
+    setBusy(true);
+    try{
+      await reconcileTracking(current.id);
+      await loadTracking();
+      notify({kind:"success",title:"تم استرجاع رقم التتبع من ShipsGo",
+        description:"تم البحث بدون طلب إنشاء جديد أو خصم رصيد إضافي. يمكنك الآن تحديث البيانات."});
+    }catch(e){notify({kind:"error",title:"تعذّرت استعادة التتبع",description:(e as Error).message});}
+    finally{setBusy(false);}
+  }
   const snapshot=current?.snapshot;
   const position=snapshot?.latitude!=null&&snapshot.longitude!=null
     ? {lat:snapshot.latitude,lng:snapshot.longitude}:null;
@@ -89,6 +129,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
       "#map=7/"+position.lat+"/"+position.lng
     :null;
   const etaElapsed=Boolean(snapshot?.eta&&!snapshot.actualArrival&&
+    !["ARRIVED","DISCHARGED","DELIVERED","COMPLETED"].includes((snapshot.status||"").toUpperCase())&&
     snapshot.eta<new Date().toISOString().slice(0,10));
   const embedMap=position
     ?"https://www.openstreetmap.org/export/embed.html?bbox="+
@@ -108,7 +149,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
       <>
         <div className="im-track-form">
           <label>البوليصة المرتبطة
-            <select value={shipmentId} onChange={e=>{setShipmentId(e.target.value);setSelectedId("");}}>
+            <select value={shipmentId} onChange={e=>{setShipmentId(e.target.value);setSelectedId("");setCarrier("");setNumber("");}}>
               {shipments.map(s=><option value={s.id} key={s.id}>{s.blNumber}</option>)}
             </select></label>
           <div className="im-info-strip"><ShipWheel size={18}/><p>
@@ -131,15 +172,23 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                 <option value="">اختر من حاويات البوليصة</option>
                 {shipment.containers.map(c=><option key={c.id} value={c.number}>{c.number}</option>)}
               </select></label>}
-            <label>شركة الشحن في ShipsGo <small>الاسم المطابق لقائمة ShipsGo، أو اتركه فارغاً لاستخدام OTHERS</small>
-               <Input dir="ltr" maxLength={80} placeholder="MSC" value={carrier}
-                 onChange={e=>setCarrier(e.target.value)}/></label>
+            <label>شركة الشحن في ShipsGo
+              {v2Configured?<select dir="ltr" value={carrier} onChange={e=>setCarrier(e.target.value)}>
+                <option value="">اختيار تلقائي من ShipsGo</option>
+                {carriers.map(c=><option key={c.scac} value={c.scac}>{c.name} ({c.scac})</option>)}
+              </select>:<Input dir="ltr" maxLength={80} placeholder="MSC" value={carrier}
+                onChange={e=>setCarrier(e.target.value)}/>}
+              <small>{v2Configured?"رمز SCAC الرسمي لشركة الشحن.":"اسم شركة الشحن حسب V1.2."}</small>
+            </label>
              <Button type="submit" className="btn primary" disabled={busy||disabled||!number.trim()}>
                حفظ رقم التتبع</Button>
           </form>
         </div>
         {!configured&&<div className="im-info-strip">
           <ShipWheel size={19}/><p>خدمة التتبع المباشر غير مفعّلة على السيرفر بعد. يمكنك حفظ أرقام التتبع، لكن لن تظهر معلومات البحر أو موقع الباخرة حتى يتم ضبط API Key.</p>
+        </div>}
+        {configured&&!v2Configured&&<div className="im-info-strip">
+          <ShipWheel size={19}/><p>تتبّع V2 للشحنات الجديدة يحتاج تفعيل مفتاح V2 على السيرفر. التتبّعات القديمة المسجّلة مسبقاً متاحة للتحديث بمفتاح V1.2.</p>
         </div>}
         {references.length===0?<div className="im-logistics-empty">لم تُضف مراجع تتبع لهذه البوليصة بعد.</div>:<>
           <div className="im-logistics-tabs" role="tablist" aria-label="مراجع التتبع">
@@ -153,6 +202,12 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
           {current&&<div className="im-track-result">
             <div className="im-logistics-details-toolbar">
               <span>آخر نتيجة معتمدة من المزوّد</span>
+              {v2Configured&&carrier!==current.carrierCode&&
+                <Button type="button" variant="outline" disabled={busy||disabled}
+                  onClick={()=>void correctCarrier()}>تعديل شركة الشحن المحفوظة</Button>}
+              {v2Configured&&current.lastErrorCode&&!current.lastSyncedAtUtc&&
+                <Button type="button" variant="outline" disabled={busy||disabled}
+                  onClick={()=>void reconcile()}>فحص طلب التتبع المعلّق دون خصم</Button>}
                <Button type="button" className="btn primary" disabled={!configured||busy||disabled}
                  onClick={()=>void refresh()}><RefreshCw size={16}/>{busy?"جارٍ الاستعلام...":"تحديث من شركة الشحن"}</Button>
             </div>
@@ -168,6 +223,17 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
               <div><small>ETA المحدّثة</small><strong>{date(snapshot.eta)}</strong></div>
               <div><small>الوصول الفعلي</small><strong>{date(snapshot.actualArrival)}</strong></div>
               <div><small>تحديث الموقع</small><strong>{date(snapshot.positionUpdatedAt)}</strong></div>
+              <div><small>ميناء التحميل</small><strong>{snapshot.portOfLoading||"غير متوفر"} {snapshot.portOfLoadingCode&&<small>({snapshot.portOfLoadingCode})</small>}</strong></div>
+              <div><small>ميناء التفريغ</small><strong>{snapshot.portOfDischarge||"غير متوفر"} {snapshot.portOfDischargeCode&&<small>({snapshot.portOfDischargeCode})</small>}</strong></div>
+              <div><small>تاريخ المغادرة الأصلي</small><strong>{date(snapshot.etdInitial)}</strong></div>
+              <div><small>تاريخ الوصول الأصلي</small><strong>{date(snapshot.etaInitial)}</strong></div>
+              <div><small>توقع ShipsGo للوصول</small><strong>{date(snapshot.etaPredicted)}</strong></div>
+              <div><small>نسبة تقدم الرحلة</small><strong>{snapshot.transitPercentage==null?"غير متوفرة":snapshot.transitPercentage+"%"}</strong></div>
+              <div><small>مدة العبور</small><strong>{snapshot.transitTimeDays==null?"غير متوفرة":snapshot.transitTimeDays+" يوم"}</strong></div>
+              <div><small>عدد الترانزيت</small><strong>{snapshot.transshipmentCount??"غير متوفر"}</strong></div>
+              <div><small>عدد الحاويات</small><strong>{snapshot.containerCount??"غير متوفر"}</strong></div>
+              <div><small>انبعاثات CO2 التقديرية</small><strong>{snapshot.co2Tons==null?"غير متوفرة":snapshot.co2Tons+" طن"}</strong></div>
+              <div><small>آخر تحقق من ShipsGo</small><strong>{date(snapshot.providerCheckedAt)}</strong></div>
             </div>
             <div className="im-track-map">
               <div><MapPin size={19}/><strong>موقع الباخرة</strong></div>
@@ -177,7 +243,17 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                 <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
                   <ExternalLink size={16}/> عرض الموقع على الخريطة</a></>:
                 <p>المزوّد لم يُرسل إحداثيات حالية لهذه الباخرة.</p>}
+              {snapshot.mapUrl&&<a className="btn btn-outline" href={snapshot.mapUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/> خريطة ShipsGo</a>}
             </div>
+            {snapshot.containers&&snapshot.containers.length>0&&<>
+              <div className="im-logistics-subhead"><div><Ship size={19}/><strong>الحاويات وحالاتها</strong></div></div>
+              <div className="im-logistics-meta">
+                {snapshot.containers.map((c,i)=><div key={c.number+"-"+i}>
+                  <small dir="ltr">{c.number}</small><strong>{statusLabel(c.status)}</strong>
+                  <small>{c.size?c.size+" قدم":""} {c.type||""} · {c.events.length} حركة</small>
+                </div>)}
+              </div>
+            </>}
             <div className="im-logistics-subhead"><div><Anchor size={19}/><strong>سجل أحداث الرحلة</strong></div></div>
             {snapshot.events.length===0?<div className="im-logistics-empty">لا توجد أحداث مُعادة من المزوّد.</div>:
               <div className="im-track-events">

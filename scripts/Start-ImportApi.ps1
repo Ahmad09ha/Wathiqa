@@ -24,6 +24,22 @@ if ([string]::IsNullOrWhiteSpace($env:OceanTracking__ShipsGoApiKey) -and
     $env:OceanTracking__ShipsGoApiKey = $shipsGoKey
     Remove-Variable shipsGoKey
 }
+$shipsGoV2File = Join-Path $local 'shipsgo-v2-token.txt'
+if ([string]::IsNullOrWhiteSpace($env:OceanTracking__ShipsGoV2Token) -and
+    (Test-Path -LiteralPath $shipsGoV2File -PathType Leaf)) {
+    $shipsGoV2Token = [IO.File]::ReadAllText($shipsGoV2File).Trim()
+    if ([string]::IsNullOrWhiteSpace($shipsGoV2Token)) { throw 'ShipsGo V2 local credential file is empty.' }
+    $env:OceanTracking__ShipsGoV2Token = $shipsGoV2Token
+    Remove-Variable shipsGoV2Token
+}
+$shipsGoWebhookFile = Join-Path $local 'shipsgo-webhook-secret.txt'
+if ([string]::IsNullOrWhiteSpace($env:OceanTracking__ShipsGoWebhookSecret) -and
+    (Test-Path -LiteralPath $shipsGoWebhookFile -PathType Leaf)) {
+    $shipsGoWebhookSecret = [IO.File]::ReadAllText($shipsGoWebhookFile).Trim()
+    if ([string]::IsNullOrWhiteSpace($shipsGoWebhookSecret)) { throw 'ShipsGo webhook secret is empty.' }
+    $env:OceanTracking__ShipsGoWebhookSecret = $shipsGoWebhookSecret
+    Remove-Variable shipsGoWebhookSecret
+}
 $project = Join-Path $root 'backend/Wathiqa.ImportApi'
 $dll = Join-Path $project 'bin/Debug/net10.0/Wathiqa.ImportApi.dll'
 if (-not (Test-Path $dll)) { throw 'New .NET 10 API is not built. Run dotnet build backend/Wathiqa.ImportApi' }

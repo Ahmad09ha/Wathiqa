@@ -1,4 +1,5 @@
 ﻿# WP-11: ShipsGo ocean tracking, subscription quotas and direct merchant onboarding
+> Historical V1.2 integration description. For the new backward-compatible Ocean V2 integration, signed webhooks, carriers and recovery workflow, see `WP-13-SHIPSGO-V2-INTEGRATION.md`.
 Verified locally 2026-11-12. This document supersedes the old SeaRates provider section in WP-10.
 
 ## Provider integration

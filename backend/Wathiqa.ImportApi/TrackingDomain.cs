@@ -31,8 +31,20 @@ public sealed record TrackingEvent(
     string ContainerNumber, string Description, string EventCode,
     string Location, string Date, bool Actual, string Vessel, string Voyage);
 
+public sealed record TrackedContainer(
+    string Number, string Status, int? Size, string? Type,
+    IReadOnlyList<TrackingEvent> Events);
+
 public sealed record TrackingSnapshot(
     string Status, string CarrierName, string CarrierCode, string Vessel,
     string Voyage, string? Etd, string? Eta, string? ActualArrival,
     double? Latitude, double? Longitude, string? PositionUpdatedAt,
-    string? ProviderUpdatedAt, IReadOnlyList<TrackingEvent> Events);
+    string? ProviderUpdatedAt, IReadOnlyList<TrackingEvent> Events,
+    string? BookingNumber = null, string? ContainerNumber = null,
+    string? PortOfLoading = null, string? PortOfLoadingCode = null,
+    string? PortOfDischarge = null, string? PortOfDischargeCode = null,
+    string? EtdInitial = null, string? EtaInitial = null, string? EtaPredicted = null,
+    int? TransitTimeDays = null, int? TransitPercentage = null,
+    int? TransshipmentCount = null, double? Co2Tons = null,
+    int? ContainerCount = null, string? ProviderCheckedAt = null,
+    string? MapUrl = null, IReadOnlyList<TrackedContainer>? Containers = null);
