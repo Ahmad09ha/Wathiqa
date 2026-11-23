@@ -8,21 +8,33 @@ import {listTracking,listShipsGoCarriers,registerTracking,refreshTracking,reconc
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
+import TrackingVoyageMap from "@/components/TrackingVoyageMap";
+import {arabicShipmentStatus,arabicEvent,arabicPort,arabicContainerType} from "@/lib/trackingArabic";
 
 const date=(value:string|null|undefined)=>{
   if(!value)return "غير متوفر";
   const parsed=new Date(value.length===10?value+"T00:00:00":value);
-  return Number.isNaN(parsed.getTime())?value:parsed.toLocaleString("ar-SY-u-nu-latn");
+  if(Number.isNaN(parsed.getTime()))return value;
+  return value.length===10
+    ?parsed.toLocaleDateString("ar-SY-u-nu-latn")
+    :parsed.toLocaleString("ar-SY-u-nu-latn");
 };
-const statusLabel=(code:string)=>{
-  const names:Record<string,string>={PLANNED:"مخطط",IN_TRANSIT:"في البحر",
-    ARRIVED:"وصلت الباخرة",DELIVERED:"تم التسليم",COMPLETED:"مكتمل",PENDING:"بانتظار بيانات",
-    NEW:"جديدة",INPROGRESS:"بانتظار معلومات الناقل",BOOKED:"محجوزة",
-    LOADED:"تم التحميل",SAILING:"في البحر",DISCHARGED:"تم التفريغ",
-    UNTRACKED:"لا تتوفر معلومات تتبع",GATE_IN:"دخلت الميناء",
-    GATE_OUT:"خرجت من الميناء",EMPTY_RETURN:"أعيدت الحاوية الفارغة",
-    EMPTY_SHIPPER:"الحاوية الفارغة لدى الشاحن",UNKNOWN:"غير معروف"};
-  return names[code.toUpperCase()]||code||"غير معروف";
+const statusLabel=arabicShipmentStatus;
+const trackingError=(code:string)=>{
+  const messages:Record<string,string>={
+    tracking_provider_unavailable:"تعذّر الاتصال بمزوّد التتبع.",
+    tracking_provider_timeout:"انتهت مهلة الاتصال بمزوّد التتبع.",
+    tracking_provider_no_data:"المزوّد لم يُرسل معلومات عن الشحنة بعد.",
+    tracking_provider_invalid_response:"الاستجابة من مزوّد التتبع غير مكتملة أو غير متوقعة.",
+    tracking_provider_auth_failed:"صلاحيات الاتصال بمزوّد التتبع بحاجة إلى مراجعة.",
+    tracking_provider_rate_limited:"تم بلوغ حد الاستعلامات المسموح مؤقتاً.",
+    tracking_provider_no_credits:"رصيد خدمة التتبع غير كافٍ.",
+    tracking_provider_ambiguous_registration:"نتيجة تسجيل التتبع غير مؤكدة وتحتاج مراجعة.",
+    tracking_provider_invalid_reference:"رقم التتبع أو شركة الشحن غير مقبولين لدى المزوّد.",
+    tracking_activation_pending_review:"طلب التتبع السابق معلّق للمراجعة قبل إعادة الإرسال.",
+    tracking_v2_not_configured:"التتبع الجديد غير مفعّل على الخادم."
+  };
+  return messages[code]||"حدثت مشكلة في مزامنة الشحنة، ويمكن مراجعة سجل الخادم لمعرفة التفاصيل.";
 };
 
 export default function ImportTrackingPanel({orderId,disabled=false}:{
@@ -131,10 +143,6 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
   const etaElapsed=Boolean(snapshot?.eta&&!snapshot.actualArrival&&
     !["ARRIVED","DISCHARGED","DELIVERED","COMPLETED"].includes((snapshot.status||"").toUpperCase())&&
     snapshot.eta<new Date().toISOString().slice(0,10));
-  const embedMap=position
-    ?"https://www.openstreetmap.org/export/embed.html?bbox="+
-      [position.lng-2,position.lat-1.5,position.lng+2,position.lat+1.5].join("%2C")+
-      "&layer=mapnik&marker="+position.lat+"%2C"+position.lng:null;
   return <section className="im-track" aria-label="تتبع الشحنة">
     <div className="im-logistics-heading">
       <div><span className="im-eyebrow">تتبع بحري / بيانات شركة الشحن</span>
@@ -211,38 +219,42 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                <Button type="button" className="btn primary" disabled={!configured||busy||disabled}
                  onClick={()=>void refresh()}><RefreshCw size={16}/>{busy?"جارٍ الاستعلام...":"تحديث من شركة الشحن"}</Button>
             </div>
-            {current.lastErrorCode&&<p className="im-track-warning">آخر محاولة لم تنجح ({current.lastErrorCode}). تبقى آخر بيانات محفوظة متاحة.</p>}
+            {current.lastErrorCode&&<p className="im-track-warning">{trackingError(current.lastErrorCode)} تبقى آخر بيانات محفوظة متاحة.</p>}
             <p className="im-track-source">آخر مزامنة: {date(current.lastSyncedAtUtc)}. حالة التتبع والموقع ليست بديلاً عن وثائق الشحن الرسمية.</p>
+            {snapshot&&["NEW","INPROGRESS"].includes(snapshot.status.toUpperCase())&&
+              <p className="im-info-strip">آخر رد من شركة التتبع لم يتضمن تفاصيل الرحلة بعد. إذا ظهرت التفاصيل داخل ShipsGo، اضغط «تحديث من شركة الشحن» بعد مرور دقيقة على آخر مزامنة. هذا تحديث قراءة للتسجيل الموجود، وليس طلب تفعيل مدفوعاً جديداً.</p>}
             {etaElapsed&&<p className="im-track-warning">تجاوز موعد الوصول المتوقع ETA ولم يؤكد مزوّد التتبع الوصول الفعلي. راجع شركة الشحن؛ قد تكون بيانات المزوّد متأخرة.</p>}
             {snapshot?<><div className="im-logistics-meta">
               <div><small>الحالة</small><strong>{statusLabel(snapshot.status)}</strong></div>
               <div><small>شركة الشحن</small><strong>{snapshot.carrierName||snapshot.carrierCode||current.carrierCode||"غير متوفرة"}</strong></div>
               <div><small>الباخرة</small><strong>{snapshot.vessel||"غير متوفرة"}</strong></div>
               <div><small>الرحلة</small><strong dir="ltr">{snapshot.voyage||"غير متوفرة"}</strong></div>
-              <div><small>ETD</small><strong>{date(snapshot.etd)}</strong></div>
-              <div><small>ETA المحدّثة</small><strong>{date(snapshot.eta)}</strong></div>
+              <div><small>تاريخ التحميل على الباخرة</small><strong>{date(snapshot.etd)}</strong></div>
+              <div><small>تاريخ التفريغ المتوقع المحدّث</small><strong>{date(snapshot.eta)}</strong></div>
               <div><small>الوصول الفعلي</small><strong>{date(snapshot.actualArrival)}</strong></div>
               <div><small>تحديث الموقع</small><strong>{date(snapshot.positionUpdatedAt)}</strong></div>
-              <div><small>ميناء التحميل</small><strong>{snapshot.portOfLoading||"غير متوفر"} {snapshot.portOfLoadingCode&&<small>({snapshot.portOfLoadingCode})</small>}</strong></div>
-              <div><small>ميناء التفريغ</small><strong>{snapshot.portOfDischarge||"غير متوفر"} {snapshot.portOfDischargeCode&&<small>({snapshot.portOfDischargeCode})</small>}</strong></div>
-              <div><small>تاريخ المغادرة الأصلي</small><strong>{date(snapshot.etdInitial)}</strong></div>
-              <div><small>تاريخ الوصول الأصلي</small><strong>{date(snapshot.etaInitial)}</strong></div>
-              <div><small>توقع ShipsGo للوصول</small><strong>{date(snapshot.etaPredicted)}</strong></div>
+              <div><small>ميناء التحميل</small><strong>{arabicPort(snapshot.portOfLoading,snapshot.portOfLoadingCode)} {snapshot.portOfLoadingCode&&<small>({snapshot.portOfLoadingCode})</small>}</strong></div>
+              <div><small>ميناء التفريغ</small><strong>{arabicPort(snapshot.portOfDischarge,snapshot.portOfDischargeCode)} {snapshot.portOfDischargeCode&&<small>({snapshot.portOfDischargeCode})</small>}</strong></div>
+              <div><small>تاريخ التحميل الأصلي</small><strong>{date(snapshot.etdInitial)}</strong></div>
+              <div><small>تاريخ التفريغ الأصلي المتوقع</small><strong>{date(snapshot.etaInitial)}</strong></div>
+              <div><small>توقع المزوّد لموعد التفريغ</small><strong>{date(snapshot.etaPredicted)}</strong></div>
               <div><small>نسبة تقدم الرحلة</small><strong>{snapshot.transitPercentage==null?"غير متوفرة":snapshot.transitPercentage+"%"}</strong></div>
               <div><small>مدة العبور</small><strong>{snapshot.transitTimeDays==null?"غير متوفرة":snapshot.transitTimeDays+" يوم"}</strong></div>
-              <div><small>عدد الترانزيت</small><strong>{snapshot.transshipmentCount??"غير متوفر"}</strong></div>
+              <div><small>عدد مرات إعادة الشحن (الترانزيت)</small><strong>{snapshot.transshipmentCount??"غير متوفر"}</strong></div>
               <div><small>عدد الحاويات</small><strong>{snapshot.containerCount??"غير متوفر"}</strong></div>
-              <div><small>انبعاثات CO2 التقديرية</small><strong>{snapshot.co2Tons==null?"غير متوفرة":snapshot.co2Tons+" طن"}</strong></div>
+              <div><small>الانبعاثات التقديرية لثاني أكسيد الكربون</small><strong>{snapshot.co2Tons==null?"غير متوفرة":snapshot.co2Tons+" طن"}</strong></div>
               <div><small>آخر تحقق من ShipsGo</small><strong>{date(snapshot.providerCheckedAt)}</strong></div>
             </div>
             <div className="im-track-map">
-              <div><MapPin size={19}/><strong>موقع الباخرة</strong></div>
-              {mapsLink?<><p dir="ltr">{position?.lat.toFixed(5)}, {position?.lng.toFixed(5)}</p>
-                {embedMap&&<iframe className="im-track-map-frame" title="موقع الباخرة وفق بيانات التتبع"
-                  loading="lazy" referrerPolicy="no-referrer" src={embedMap}/>}
-                <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                  <ExternalLink size={16}/> عرض الموقع على الخريطة</a></>:
-                <p>المزوّد لم يُرسل إحداثيات حالية لهذه الباخرة.</p>}
+              <div><MapPin size={19}/><strong>خريطة رحلة الشحنة</strong></div>
+              {(position||snapshot.mapSegments?.length||snapshot.mapWaypoints?.length)?
+                <TrackingVoyageMap latitude={snapshot.latitude} longitude={snapshot.longitude}
+                  waypoints={snapshot.mapWaypoints||[]} segments={snapshot.mapSegments||[]}/>:
+                <p>لا توجد بيانات مسار جغرافية بعد من ShipsGo. حدّث الشحنة لعرض خط السير والموانئ إن توفرت.</p>}
+              {position?<p>موقع الباخرة المرسل من ShipsGo: <b dir="ltr">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</b></p>:
+                <p>موقع الباخرة الحالي غير متوفر؛ خطوط الرحلة المرسومة إن وجدت هي بيانات المسار من المزوّد وليست موقعاً حيّاً.</p>}
+              {mapsLink&&<a href={mapsLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
+                <ExternalLink size={16}/> فتح الموقع على خريطة خارجية</a>}
               {snapshot.mapUrl&&<a className="btn btn-outline" href={snapshot.mapUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/> خريطة ShipsGo</a>}
             </div>
             {snapshot.containers&&snapshot.containers.length>0&&<>
@@ -250,7 +262,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
               <div className="im-logistics-meta">
                 {snapshot.containers.map((c,i)=><div key={c.number+"-"+i}>
                   <small dir="ltr">{c.number}</small><strong>{statusLabel(c.status)}</strong>
-                  <small>{c.size?c.size+" قدم":""} {c.type||""} · {c.events.length} حركة</small>
+                  <small>{c.size?c.size+" قدم":""} {arabicContainerType(c.type)} · {c.events.length} حركة</small>
                 </div>)}
               </div>
             </>}
@@ -259,8 +271,8 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
               <div className="im-track-events">
                 {snapshot.events.map((event,index)=><div key={index} className="im-track-event">
                   <span className="im-track-dot"/>
-                  <div><strong>{event.description||event.eventCode}</strong>
-                    <p>{[event.location,event.containerNumber,event.vessel,event.voyage].filter(Boolean).join(" · ")}</p>
+                   <div><strong>{arabicEvent(event.eventCode,event.description)}</strong>
+                     <p>{[event.location?arabicPort(event.location):null,event.containerNumber,event.vessel,event.voyage].filter(Boolean).join(" · ")}</p>
                   </div>
                   <small>{date(event.date)} · {event.actual?"فعلي":"متوقع"}</small>
                 </div>)}

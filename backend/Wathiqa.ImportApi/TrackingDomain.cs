@@ -35,6 +35,14 @@ public sealed record TrackedContainer(
     string Number, string Status, int? Size, string? Type,
     IReadOnlyList<TrackingEvent> Events);
 
+// Latitude/longitude from ShipsGo's GeoJSON coordinates (longitude comes first
+// in the wire format). These records are not synthetic geolocation predictions.
+public sealed record TrackingMapCoordinate(double Latitude, double Longitude);
+public sealed record TrackingMapWaypoint(
+    double Latitude, double Longitude, string Status, string? Name);
+public sealed record TrackingMapSegment(
+    string Status, IReadOnlyList<TrackingMapCoordinate> Points);
+
 public sealed record TrackingSnapshot(
     string Status, string CarrierName, string CarrierCode, string Vessel,
     string Voyage, string? Etd, string? Eta, string? ActualArrival,
@@ -47,4 +55,6 @@ public sealed record TrackingSnapshot(
     int? TransitTimeDays = null, int? TransitPercentage = null,
     int? TransshipmentCount = null, double? Co2Tons = null,
     int? ContainerCount = null, string? ProviderCheckedAt = null,
-    string? MapUrl = null, IReadOnlyList<TrackedContainer>? Containers = null);
+    string? MapUrl = null, IReadOnlyList<TrackedContainer>? Containers = null,
+    IReadOnlyList<TrackingMapWaypoint>? MapWaypoints = null,
+    IReadOnlyList<TrackingMapSegment>? MapSegments = null);

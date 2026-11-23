@@ -84,7 +84,9 @@ public static class TrackingApi
                         var updated = snapshot with {
                             Latitude = previous?.Latitude,
                             Longitude = previous?.Longitude,
-                            PositionUpdatedAt = previous?.PositionUpdatedAt
+                            PositionUpdatedAt = previous?.PositionUpdatedAt,
+                            MapWaypoints = previous?.MapWaypoints,
+                            MapSegments = previous?.MapSegments
                         };
                         item.SnapshotJson = JsonSerializer.Serialize(updated);
                         item.ProviderStatus = updated.Status[..Math.Min(updated.Status.Length, 60)];
@@ -256,7 +258,10 @@ public static class TrackingApi
                     statusCode: StatusCodes.Status503ServiceUnavailable);
 
             var now = DateTime.UtcNow;
-            if (item.LastSyncedAtUtc > now - RefreshInterval)
+            // Already activated shipments only need free/read-only GETs. Their
+            // first response may be NEW before ShipsGo has processed the B/L.
+            // Keep a 60-second GET throttle without delaying updates 30 minutes.
+            if (item.LastSyncedAtUtc > now - TimeSpan.FromMinutes(1))
                 return Results.Ok(Info(item));
 
             var tenantId = CurrentTenant.Id(principal);
@@ -314,12 +319,17 @@ public static class TrackingApi
                     };
                     freshActivation = old is null;
                 }
+                // This also covers an activated provider ID reused from a
+                // previous subscription cycle: no new paid POST is required.
+                var existingReadOnlyTracking = usage is { ProviderRequestId.Length: > 0 };
+                var allowedSince = now -
+                    (existingReadOnlyTracking ? TimeSpan.FromMinutes(1) : RefreshInterval);
                 // Reserve the rate-limit slot in the SAME transaction as
                 // tracking quota; a 429 must never leave an orphan paid slot.
                 var claimed = await db.TrackingReferences
                     .Where(x => x.Id == id &&
                         (x.LastAttemptAtUtc == null ||
-                         x.LastAttemptAtUtc < now - RefreshInterval))
+                         x.LastAttemptAtUtc < allowedSince))
                     .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.LastAttemptAtUtc,now),ct);
                 if (claimed == 0)
                     return Results.Json(new { error = "tracking_refresh_too_soon" },

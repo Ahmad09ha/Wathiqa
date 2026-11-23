@@ -80,6 +80,44 @@ using var empty = JsonDocument.Parse("""{"id":123,"status":"NEW","containers":[]
 var pending = ShipsGoV2Client.ParseSnapshot(empty.RootElement);
 Check(pending.Events.Count == 0 && pending.Eta is null && pending.PortOfLoading is null,
       "new shipment may have missing data");
+using var voyageGeo = JsonDocument.Parse(
+    """
+    {
+      "type":"FeatureCollection",
+      "features":[
+        {"type":"Feature","geometry":{"type":"Point","coordinates":[121.5,31.2]},
+         "properties":{"status":"PAST","location":{"name":"ZHAPU"}}},
+        {"type":"Feature","geometry":{"type":"LineString",
+          "coordinates":[[121.5,31.2],[100.5,20.1],[75.8,18.4]]},
+         "properties":{"status":"CURRENT","current":{"coordinates":[100.5,20.1]}}},
+        {"type":"Feature","geometry":{"type":"Point","coordinates":[36.15,36.55]},
+         "properties":{"status":"FUTURE","location":{"name":"ISKENDERUN"}}},
+        {"type":"Feature","geometry":{"type":"LineString",
+          "coordinates":[[75.8,18.4],[36.15,36.55]]},
+         "properties":{"status":"FUTURE"}}
+      ]
+    }
+    """);
+var (mapPosition, waypoints, mapSegments) = ShipsGoV2Client.ParseGeoJson(voyageGeo.RootElement);
+Check(mapPosition?.Latitude == 20.1 && mapPosition?.Longitude == 100.5,
+      "GeoJSON CURRENT LineString reports active position (lon,lat wire order)");
+Check(mapSegments.Count == 2 && mapSegments[0].Status == "CURRENT" &&
+      mapSegments[1].Status == "FUTURE" && mapSegments[0].Points.Count == 3 &&
+      waypoints.Count == 2 && waypoints[0].Name == "ZHAPU",
+      "GeoJSON sailing route segments and origin/destination waypoints");
+var withMap = snap with {
+    Latitude = mapPosition?.Latitude, Longitude = mapPosition?.Longitude,
+    MapWaypoints = waypoints, MapSegments = mapSegments
+};
+var replay = JsonSerializer.Deserialize<TrackingSnapshot>(
+    JsonSerializer.Serialize(withMap));
+Check(replay?.MapSegments?.Count == 2 && replay.MapWaypoints?[1].Status == "FUTURE",
+      "GeoJSON route and waypoints survive database JSON snapshot serialization");
+using var invalidGeo = JsonDocument.Parse(
+    """{"type":"FeatureCollection","features":[{"geometry":{"type":"Point","coordinates":[1000,2000]},"properties":{"status":"CURRENT"}}]}""");
+var (badPoint, badWaypoints, badSegments) = ShipsGoV2Client.ParseGeoJson(invalidGeo.RootElement);
+Check(badPoint is null && badWaypoints.Count == 0 && badSegments.Count == 0,
+      "invalid map coordinates cannot become a false vessel position");
 try
 {
     using var bad = JsonDocument.Parse("""{"status":"SAILING"}""");
@@ -173,6 +211,8 @@ if (Environment.GetEnvironmentVariable("SHIPSGO_V2_HTTP_TEST") == "1")
     Check(fetched.Status == "SAILING" && fetched.Events.Count == 1 &&
           fetched.Latitude == 35.9 && fetched.Longitude == 36.4,
           "GET shipment + GET current GeoJSON position");
+    Check(fetched.MapSegments?.Count == 1 && fetched.MapWaypoints?.Count == 2,
+          "GET voyage route segments and waypoints for embedded map");
     var rejected = false;
     try
     {

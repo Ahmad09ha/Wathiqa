@@ -191,16 +191,28 @@ public sealed class ShipsGoV2Client(IConfiguration configuration, IHostEnvironme
             received.ToString(CultureInfo.InvariantCulture) != id)
             throw new TrackingProviderException("tracking_provider_invalid_response");
         var snapshot = ParseSnapshot(shipment);
+        // This distinguishes "ShipsGo returned NEW" from "Wathiqa failed
+        // to parse an already available voyage". No reference/credentials logged.
+        logger.LogInformation(
+            "SHIPSGO_V2_SNAPSHOT Status={Status} ContainerCount={ContainerCount} " +
+            "ParsedContainers={ParsedContainers} MovementCount={MovementCount} " +
+            "HasRoute={HasRoute} ProviderUpdatedAtPresent={ProviderUpdatedAtPresent}",
+            snapshot.Status, snapshot.ContainerCount, snapshot.Containers?.Count ?? 0,
+            snapshot.Events.Count, snapshot.PortOfLoading is not null ||
+            snapshot.PortOfDischarge is not null, snapshot.ProviderUpdatedAt is not null);
         // Geographic route is additional data, never a prerequisite for core tracking.
         try
         {
             using var geo = await GetAsync("ocean/shipments/" + id + "/geojson", ct);
             if (Str(geo.RootElement, "message") == "SUCCESS")
             {
-                var (lat, lng) = CurrentPosition(Prop(geo.RootElement, "geojson"));
-                if (lat.HasValue && lng.HasValue)
-                    snapshot = snapshot with { Latitude = lat, Longitude = lng,
-                        PositionUpdatedAt = snapshot.ProviderUpdatedAt ?? snapshot.ProviderCheckedAt };
+                var (position, waypoints, segments) = ParseGeoJson(Prop(geo.RootElement, "geojson"));
+                snapshot = snapshot with {
+                    Latitude = position?.Latitude, Longitude = position?.Longitude,
+                    PositionUpdatedAt = position is null ? null :
+                        snapshot.ProviderUpdatedAt ?? snapshot.ProviderCheckedAt,
+                    MapWaypoints = waypoints, MapSegments = segments
+                };
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -294,28 +306,66 @@ public sealed class ShipsGoV2Client(IConfiguration configuration, IHostEnvironme
         "GTOT" => "Gate out", "EMRT" => "Empty returned", _ => code
     };
 
-    private static (double? latitude, double? longitude) CurrentPosition(JsonElement geo)
+    public static (TrackingMapCoordinate? Position,
+        IReadOnlyList<TrackingMapWaypoint> Waypoints,
+        IReadOnlyList<TrackingMapSegment> Segments) ParseGeoJson(JsonElement geo)
     {
         var features = Prop(geo, "features");
-        if (features.ValueKind != JsonValueKind.Array) return (null, null);
-        foreach (var f in features.EnumerateArray())
+        var waypoints = new List<TrackingMapWaypoint>();
+        var segments = new List<TrackingMapSegment>();
+        TrackingMapCoordinate? position = null;
+        if (features.ValueKind != JsonValueKind.Array)
+            return (position, waypoints, segments);
+        var totalCoordinates = 0;
+        foreach (var f in features.EnumerateArray().Take(100))
         {
             var properties = Prop(f, "properties");
-            if (Str(properties, "status") != "CURRENT") continue;
             var geometry = Prop(f, "geometry");
-            JsonElement coordinates;
-            if (Str(geometry, "type") == "LineString")
-                coordinates = Prop(Prop(properties, "current"), "coordinates");
-            else if (Str(geometry, "type") == "Point")
-                coordinates = Prop(geometry, "coordinates");
-            else continue;
-            if (coordinates.ValueKind == JsonValueKind.Array && coordinates.GetArrayLength() >= 2 &&
-                coordinates[0].TryGetDouble(out var lng) && coordinates[1].TryGetDouble(out var lat) &&
-                double.IsFinite(lat) && double.IsFinite(lng) &&
-                lat is >= -90 and <= 90 && lng is >= -180 and <= 180)
-                return (lat, lng);
+            var status = Str(properties, "status").ToUpperInvariant();
+            if (status is not ("CURRENT" or "PAST" or "FUTURE"))
+                continue;
+            var kind = Str(geometry, "type");
+            if (kind == "Point")
+            {
+                var point = ParseCoordinate(Prop(geometry, "coordinates"));
+                if (point is null) continue;
+                var name = NullableStr(Prop(properties, "location"), "name");
+                waypoints.Add(new TrackingMapWaypoint(point.Latitude, point.Longitude, status, name));
+                if (status == "CURRENT") position = point;
+            }
+            else if (kind == "LineString")
+            {
+                var coordinates = Prop(geometry, "coordinates");
+                if (coordinates.ValueKind != JsonValueKind.Array) continue;
+                var route = new List<TrackingMapCoordinate>();
+                foreach (var candidate in coordinates.EnumerateArray())
+                {
+                    if (totalCoordinates >= 3000 || route.Count >= 500) break;
+                    var point = ParseCoordinate(candidate);
+                    if (point is null) continue;
+                    route.Add(point);
+                    totalCoordinates++;
+                }
+                if (route.Count > 1)
+                    segments.Add(new TrackingMapSegment(status, route));
+                if (status == "CURRENT")
+                    position = ParseCoordinate(Prop(Prop(properties, "current"), "coordinates"));
+            }
         }
-        return (null, null);
+        return (position, waypoints, segments);
+    }
+
+    private static TrackingMapCoordinate? ParseCoordinate(JsonElement coordinates)
+    {
+        if (coordinates.ValueKind != JsonValueKind.Array || coordinates.GetArrayLength() < 2 ||
+            coordinates[0].ValueKind != JsonValueKind.Number ||
+            coordinates[1].ValueKind != JsonValueKind.Number ||
+            !coordinates[0].TryGetDouble(out var longitude) ||
+            !coordinates[1].TryGetDouble(out var latitude) ||
+            !double.IsFinite(latitude) || !double.IsFinite(longitude) ||
+            latitude is < -90 or > 90 || longitude is < -180 or > 180)
+            return null;
+        return new TrackingMapCoordinate(latitude, longitude);
     }
 
     private static JsonElement Prop(JsonElement json, string name) =>

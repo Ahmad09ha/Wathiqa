@@ -5,6 +5,7 @@ import "@fontsource/ibm-plex-sans-arabic/600.css";
 import "@fontsource/ibm-plex-sans-arabic/700.css";
 import "@fontsource-variable/ibm-plex-sans/wght.css";
 import "lenis/dist/lenis.css";
+import "leaflet/dist/leaflet.css";
 import "./shadcn.css";
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";

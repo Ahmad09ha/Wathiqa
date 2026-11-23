@@ -63,7 +63,12 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="GET" && url.pathname==="/ocean/shipments/123456/geojson")
     return reply(200,{message:"SUCCESS",geojson:{type:"FeatureCollection",features:[
       {type:"Feature",geometry:{type:"Point",coordinates:[36.4,35.9]},
-       properties:{status:"CURRENT"}}
+       properties:{status:"CURRENT"}},
+      {type:"Feature",geometry:{type:"LineString",
+        coordinates:[[35.5,35.6],[36.4,35.9],[37.1,36.1]]},
+        properties:{status:"PAST"}},
+      {type:"Feature",geometry:{type:"Point",coordinates:[37.1,36.1]},
+        properties:{status:"FUTURE",location:{name:"ISKENDERUN"}}}
     ]}});
   reply(404,{message:"NOT_FOUND"});
 });

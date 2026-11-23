@@ -4,6 +4,13 @@ export interface OceanEvent {
   containerNumber:string; description:string; eventCode:string;
   location:string; date:string; actual:boolean; vessel:string; voyage:string;
 }
+export interface OceanMapCoordinate { latitude:number;longitude:number; }
+export interface OceanMapWaypoint extends OceanMapCoordinate {
+  status:"PAST"|"CURRENT"|"FUTURE";name:string|null;
+}
+export interface OceanMapSegment {
+  status:"PAST"|"CURRENT"|"FUTURE";points:OceanMapCoordinate[];
+}
 export interface OceanSnapshot {
   status:string; carrierName:string; carrierCode:string; vessel:string;
   voyage:string; etd:string|null; eta:string|null; actualArrival:string|null;
@@ -19,6 +26,8 @@ export interface OceanSnapshot {
   mapUrl?:string|null;containers?:{
     number:string;status:string;size:number|null;type:string|null;events:OceanEvent[];
   }[]|null;
+  mapWaypoints?:OceanMapWaypoint[]|null;
+  mapSegments?:OceanMapSegment[]|null;
 }
 export interface TrackingReference {
   id:string;shipmentId:string;referenceType:"CT"|"BL";referenceNumber:string;
