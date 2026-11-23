@@ -9,15 +9,38 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import TrackingVoyageMap from "@/components/TrackingVoyageMap";
-import {arabicShipmentStatus,arabicEvent,arabicPort,arabicContainerType} from "@/lib/trackingArabic";
+import {arabicShipmentStatus,arabicEvent,arabicPort,arabicContainerType,localizePort} from "@/lib/trackingArabic";
 
 const date=(value:string|null|undefined)=>{
   if(!value)return "غير متوفر";
-  const parsed=new Date(value.length===10?value+"T00:00:00":value);
-  if(Number.isNaN(parsed.getTime()))return value;
-  return value.length===10
-    ?parsed.toLocaleDateString("ar-SY-u-nu-latn")
-    :parsed.toLocaleString("ar-SY-u-nu-latn");
+  // ShipsGo's loading/discharge ETA is a date, not an exact arrival hour.
+  // Parse the literal calendar date in UTC, avoiding timezone day shifts or
+  // misleading midnight timestamps from date-time-only provider values.
+  const match=/^(\d{4})-(\d{2})-(\d{2})(?:$|[T ])/.exec(value);
+  if(!match)return "تاريخ غير صالح";
+  const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+  if(year<2000||year>2100)return "تاريخ غير صالح";
+  const utc=new Date(Date.UTC(year,month-1,day));
+  if(utc.getUTCFullYear()!==year||utc.getUTCMonth()!==month-1||
+    utc.getUTCDate()!==day)return "تاريخ غير صالح";
+  return new Intl.DateTimeFormat("ar-SY-u-nu-latn",{
+    day:"numeric",month:"long",year:"numeric",timeZone:"UTC"
+  }).format(utc);
+};
+const dateTime=(value:string|null|undefined)=>{
+  if(!value)return "غير متوفر";
+  if(/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)){
+    const parsed=new Date(value);
+    if(!Number.isNaN(parsed.getTime()))
+      return parsed.toLocaleString("ar-SY-u-nu-latn",{
+        day:"numeric",month:"long",year:"numeric",
+        hour:"2-digit",minute:"2-digit"
+      });
+  }
+  // ShipsGo sometimes supplies a timestamp without a timezone; do not
+  // quietly convert it as UTC or claim a precise time zone.
+  const hour=/[T ](\d{2}):(\d{2})/.exec(value);
+  return date(value)+(hour?" · "+hour[1]+":"+hour[2]+" (توقيت المزوّد)":"");
 };
 const statusLabel=arabicShipmentStatus;
 const trackingError=(code:string)=>{
@@ -134,12 +157,11 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
     finally{setBusy(false);}
   }
   const snapshot=current?.snapshot;
+  const pol=localizePort(snapshot?.portOfLoading,snapshot?.portOfLoadingCode);
+  const pod=localizePort(snapshot?.portOfDischarge,snapshot?.portOfDischargeCode);
+  const expectedDischarge=snapshot?.eta||snapshot?.etaPredicted||snapshot?.etaInitial;
   const position=snapshot?.latitude!=null&&snapshot.longitude!=null
     ? {lat:snapshot.latitude,lng:snapshot.longitude}:null;
-  const mapsLink=position
-    ?"https://www.openstreetmap.org/?mlat="+position.lat+"&mlon="+position.lng+
-      "#map=7/"+position.lat+"/"+position.lng
-    :null;
   const etaElapsed=Boolean(snapshot?.eta&&!snapshot.actualArrival&&
     !["ARRIVED","DISCHARGED","DELIVERED","COMPLETED"].includes((snapshot.status||"").toUpperCase())&&
     snapshot.eta<new Date().toISOString().slice(0,10));
@@ -220,7 +242,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                  onClick={()=>void refresh()}><RefreshCw size={16}/>{busy?"جارٍ الاستعلام...":"تحديث من شركة الشحن"}</Button>
             </div>
             {current.lastErrorCode&&<p className="im-track-warning">{trackingError(current.lastErrorCode)} تبقى آخر بيانات محفوظة متاحة.</p>}
-            <p className="im-track-source">آخر مزامنة: {date(current.lastSyncedAtUtc)}. حالة التتبع والموقع ليست بديلاً عن وثائق الشحن الرسمية.</p>
+            <p className="im-track-source">آخر مزامنة: {dateTime(current.lastSyncedAtUtc)}. حالة التتبع والموقع ليست بديلاً عن وثائق الشحن الرسمية.</p>
             {snapshot&&["NEW","INPROGRESS"].includes(snapshot.status.toUpperCase())&&
               <p className="im-info-strip">آخر رد من شركة التتبع لم يتضمن تفاصيل الرحلة بعد. إذا ظهرت التفاصيل داخل ShipsGo، اضغط «تحديث من شركة الشحن» بعد مرور دقيقة على آخر مزامنة. هذا تحديث قراءة للتسجيل الموجود، وليس طلب تفعيل مدفوعاً جديداً.</p>}
             {etaElapsed&&<p className="im-track-warning">تجاوز موعد الوصول المتوقع ETA ولم يؤكد مزوّد التتبع الوصول الفعلي. راجع شركة الشحن؛ قد تكون بيانات المزوّد متأخرة.</p>}
@@ -230,20 +252,28 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
               <div><small>الباخرة</small><strong>{snapshot.vessel||"غير متوفرة"}</strong></div>
               <div><small>الرحلة</small><strong dir="ltr">{snapshot.voyage||"غير متوفرة"}</strong></div>
               <div><small>تاريخ التحميل على الباخرة</small><strong>{date(snapshot.etd)}</strong></div>
-              <div><small>تاريخ التفريغ المتوقع المحدّث</small><strong>{date(snapshot.eta)}</strong></div>
+              <div><small>موعد التفريغ المتوقع {snapshot.eta?"بحسب الناقل":snapshot.etaPredicted?"بحسب توقع المزوّد":snapshot.etaInitial?"الأولي":""}</small><strong>{date(expectedDischarge)}</strong>
+                <small>تاريخ تقديري وليس ساعة وصول مؤكدة</small></div>
               <div><small>الوصول الفعلي</small><strong>{date(snapshot.actualArrival)}</strong></div>
-              <div><small>تحديث الموقع</small><strong>{date(snapshot.positionUpdatedAt)}</strong></div>
-              <div><small>ميناء التحميل</small><strong>{arabicPort(snapshot.portOfLoading,snapshot.portOfLoadingCode)} {snapshot.portOfLoadingCode&&<small>({snapshot.portOfLoadingCode})</small>}</strong></div>
-              <div><small>ميناء التفريغ</small><strong>{arabicPort(snapshot.portOfDischarge,snapshot.portOfDischargeCode)} {snapshot.portOfDischargeCode&&<small>({snapshot.portOfDischargeCode})</small>}</strong></div>
+              <div><small>تحديث الموقع</small><strong>{dateTime(snapshot.positionUpdatedAt)}</strong></div>
+              <div><small>ميناء التحميل</small><strong>{pol.arabic}</strong>
+                {pol.confidence==="approximate"&&<small>تعريب صوتي تقريبي</small>}
+                {(pol.official||snapshot.portOfLoadingCode)&&<small dir="ltr">{[pol.official,snapshot.portOfLoadingCode].filter(Boolean).join(" · ")}</small>}
+              </div>
+              <div><small>ميناء التفريغ</small><strong>{pod.arabic}</strong>
+                {pod.confidence==="approximate"&&<small>تعريب صوتي تقريبي</small>}
+                {(pod.official||snapshot.portOfDischargeCode)&&<small dir="ltr">{[pod.official,snapshot.portOfDischargeCode].filter(Boolean).join(" · ")}</small>}
+              </div>
               <div><small>تاريخ التحميل الأصلي</small><strong>{date(snapshot.etdInitial)}</strong></div>
               <div><small>تاريخ التفريغ الأصلي المتوقع</small><strong>{date(snapshot.etaInitial)}</strong></div>
-              <div><small>توقع المزوّد لموعد التفريغ</small><strong>{date(snapshot.etaPredicted)}</strong></div>
+              <div><small>توقع ShipsGo الإضافي للتفريغ</small>
+                <strong>{snapshot.etaPredicted?date(snapshot.etaPredicted):"لم يصدر توقع إضافي"}</strong></div>
               <div><small>نسبة تقدم الرحلة</small><strong>{snapshot.transitPercentage==null?"غير متوفرة":snapshot.transitPercentage+"%"}</strong></div>
               <div><small>مدة العبور</small><strong>{snapshot.transitTimeDays==null?"غير متوفرة":snapshot.transitTimeDays+" يوم"}</strong></div>
               <div><small>عدد مرات إعادة الشحن (الترانزيت)</small><strong>{snapshot.transshipmentCount??"غير متوفر"}</strong></div>
               <div><small>عدد الحاويات</small><strong>{snapshot.containerCount??"غير متوفر"}</strong></div>
               <div><small>الانبعاثات التقديرية لثاني أكسيد الكربون</small><strong>{snapshot.co2Tons==null?"غير متوفرة":snapshot.co2Tons+" طن"}</strong></div>
-              <div><small>آخر تحقق من ShipsGo</small><strong>{date(snapshot.providerCheckedAt)}</strong></div>
+              <div><small>آخر تحقق من ShipsGo</small><strong>{dateTime(snapshot.providerCheckedAt)}</strong></div>
             </div>
             <div className="im-track-map">
               <div><MapPin size={19}/><strong>خريطة رحلة الشحنة</strong></div>
@@ -251,11 +281,11 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                 <TrackingVoyageMap latitude={snapshot.latitude} longitude={snapshot.longitude}
                   waypoints={snapshot.mapWaypoints||[]} segments={snapshot.mapSegments||[]}/>:
                 <p>لا توجد بيانات مسار جغرافية بعد من ShipsGo. حدّث الشحنة لعرض خط السير والموانئ إن توفرت.</p>}
+              {snapshot.mapWaypoints?.length&&!snapshot.mapSegments?.length?
+                <p>المزوّد أعاد مواقع موانئ فقط، بدون خط ملاحة. لذلك نعرض الموانئ ولا نرسم مساراً افتراضياً قد يكون غير صحيح.</p>:null}
               {position?<p>موقع الباخرة المرسل من ShipsGo: <b dir="ltr">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</b></p>:
                 <p>موقع الباخرة الحالي غير متوفر؛ خطوط الرحلة المرسومة إن وجدت هي بيانات المسار من المزوّد وليست موقعاً حيّاً.</p>}
-              {mapsLink&&<a href={mapsLink} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                <ExternalLink size={16}/> فتح الموقع على خريطة خارجية</a>}
-              {snapshot.mapUrl&&<a className="btn btn-outline" href={snapshot.mapUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/> خريطة ShipsGo</a>}
+              {snapshot.mapUrl&&<a className="btn btn-outline" href={snapshot.mapUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/> عرض على ShipsGo</a>}
             </div>
             {snapshot.containers&&snapshot.containers.length>0&&<>
               <div className="im-logistics-subhead"><div><Ship size={19}/><strong>الحاويات وحالاتها</strong></div></div>
@@ -274,7 +304,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                    <div><strong>{arabicEvent(event.eventCode,event.description)}</strong>
                      <p>{[event.location?arabicPort(event.location):null,event.containerNumber,event.vessel,event.voyage].filter(Boolean).join(" · ")}</p>
                   </div>
-                  <small>{date(event.date)} · {event.actual?"فعلي":"متوقع"}</small>
+                  <small>{dateTime(event.date)} · {event.actual?"فعلي":"متوقع"}</small>
                 </div>)}
               </div>}
             </>:<div className="im-logistics-empty">لم تُجلب بيانات من المزوّد بعد. اختر تحديث من شركة الشحن عند تفعيل الخدمة.</div>}

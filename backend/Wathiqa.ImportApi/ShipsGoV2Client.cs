@@ -213,10 +213,24 @@ public sealed class ShipsGoV2Client(IConfiguration configuration, IHostEnvironme
                         snapshot.ProviderUpdatedAt ?? snapshot.ProviderCheckedAt,
                     MapWaypoints = waypoints, MapSegments = segments
                 };
+                logger.LogInformation(
+                    "SHIPSGO_V2_GEOJSON Result={Result} MapSegments={MapSegments} MapWaypoints={MapWaypoints} HasCurrentPosition={HasCurrentPosition}",
+                    segments.Count > 0 ? "ROUTE_RECEIVED" :
+                        waypoints.Count > 0 ? "WAYPOINTS_ONLY" : "EMPTY",
+                    segments.Count, waypoints.Count, position is not null);
             }
+            else
+                logger.LogWarning("SHIPSGO_V2_GEOJSON Result=UNEXPECTED_RESPONSE");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (TrackingProviderException) { /* GeoJSON may be unavailable; retain voyage. */ }
+        catch (TrackingProviderException ex)
+        {
+            // The voyage JSON can be complete while optional map data is denied
+            // or unavailable. Log only a safe error code, never URL or API token.
+            logger.LogWarning(
+                "SHIPSGO_V2_GEOJSON Result=UNAVAILABLE ErrorCode={ErrorCode}",
+                ex.Code);
+        }
         return snapshot;
     }
 
