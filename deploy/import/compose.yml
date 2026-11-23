@@ -74,7 +74,10 @@ services:
       - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/documents:/var/lib/wathiqa/documents
       - ${WATHIQA_PRIVATE_ROOT:?Absolute private host path}/keys:/var/lib/wathiqa/keys
       - import_clamav_signatures:/var/lib/clamav:ro
-    networks: [import_private]
+    # Keep the private DB/application network isolated while allowing only
+    # the API to reach ShipsGo's HTTPS API and resolve external DNS.
+    # This network does not publish ports or expose the API through ingress.
+    networks: [import_private, tracking_egress]
     expose: ["8080"]
     healthcheck:
       # The API starts listening only AFTER all pending migrations succeed.
@@ -143,6 +146,9 @@ networks:
       config:
         - subnet: ${WATHIQA_PRIVATE_SUBNET:?Example 172.29.241.0/24; verify no overlap}
   signature_updates: {}
+  # Non-internal, dedicated bridge: outbound DNS/HTTPS for the API only.
+  # Postgres remains solely on import_private (internal: true).
+  tracking_egress: {}
   backup_egress: {}
   dokploy-network:
     external: true

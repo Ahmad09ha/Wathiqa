@@ -30,6 +30,7 @@ Webhook receiver: `POST /api/tracking/provider-webhook` (the **backend API** URL
 - HTTP protocol test: start `node scripts/Mock-ShipsGoV2-Local.mjs`, set `SHIPSGO_V2_HTTP_TEST=1`, then run the above C# test project; stop the mock afterward.
 - Frontend: `cd frontend; npm ci; npm run lint; npm run build`.
 - The local HTTP mock **does not prove** a production account's token, available credits, actual carrier support, actual real-world voyage or public webhook delivery. Verify those with a controlled staging rollout, production-approved credentials, backups and a single authorized sample activation before claiming real integration success. Do not run chargeable tests or migrations automatically against Dokploy/VPS.
+- The API must be attached to both `import_private` (internal DB/Next.js) and `tracking_egress` (outbound DNS/HTTPS). The private network alone is `internal: true` and cannot reach `api.shipsgo.com`; do not attach PostgreSQL to the egress or add public API port mappings.
 
 ## Error / safe retry model
 - Provider token missing -> no activation.
