@@ -10,6 +10,7 @@ import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import TrackingVoyageMap from "@/components/TrackingVoyageMap";
 import {arabicShipmentStatus,arabicEvent,arabicPort,arabicContainerType,localizePort} from "@/lib/trackingArabic";
+import {groupOceanEvents} from "@/lib/groupOceanEvents";
 
 const date=(value:string|null|undefined)=>{
   if(!value)return "غير متوفر";
@@ -157,6 +158,7 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
     finally{setBusy(false);}
   }
   const snapshot=current?.snapshot;
+  const groupedEvents=groupOceanEvents(snapshot?.events||[]);
   const pol=localizePort(snapshot?.portOfLoading,snapshot?.portOfLoadingCode);
   const pod=localizePort(snapshot?.portOfDischarge,snapshot?.portOfDischargeCode);
   const expectedDischarge=snapshot?.eta||snapshot?.etaPredicted||snapshot?.etaInitial;
@@ -296,13 +298,31 @@ export default function ImportTrackingPanel({orderId,disabled=false}:{
                 </div>)}
               </div>
             </>}
-            <div className="im-logistics-subhead"><div><Anchor size={19}/><strong>سجل أحداث الرحلة</strong></div></div>
+            <div className="im-logistics-subhead">
+              <div><Anchor size={19}/><strong>سجل أحداث الرحلة</strong></div>
+              {groupedEvents.length<(snapshot?.events.length||0)&&
+                <small className="im-track-grouping-note">
+                  {groupedEvents.length} أحداث موحّدة بدل {snapshot?.events.length} سجلات للحاويات
+                </small>}
+            </div>
             {snapshot.events.length===0?<div className="im-logistics-empty">لا توجد أحداث مُعادة من المزوّد.</div>:
               <div className="im-track-events">
-                {snapshot.events.map((event,index)=><div key={index} className="im-track-event">
+                {groupedEvents.map((event,index)=><div key={index} className="im-track-event">
                   <span className="im-track-dot"/>
-                   <div><strong>{arabicEvent(event.eventCode,event.description)}</strong>
-                     <p>{[event.location?arabicPort(event.location):null,event.containerNumber,event.vessel,event.voyage].filter(Boolean).join(" · ")}</p>
+                   <div className="im-track-event-main"><strong>{arabicEvent(event.eventCode,event.description)}</strong>
+                     <p>{[event.location?arabicPort(event.location):null,event.vessel,event.voyage].filter(Boolean).join(" · ")}</p>
+                     {event.containerNumbers.length>0&&
+                       <div className="im-track-event-associated">
+                         <span>الحاويات ({event.containerNumbers.length}):</span>
+                         {event.containerNumbers.slice(0,5).map(number=>
+                           <span key={number} className="im-track-container-pill" dir="ltr">{number}</span>)}
+                         {event.containerNumbers.length>5&&
+                           <details className="im-track-more-containers">
+                             <summary>عرض {event.containerNumbers.length-5} حاويات إضافية</summary>
+                             <div>{event.containerNumbers.slice(5).map(number=>
+                               <span key={number} className="im-track-container-pill" dir="ltr">{number}</span>)}</div>
+                           </details>}
+                       </div>}
                   </div>
                   <small>{dateTime(event.date)} · {event.actual?"فعلي":"متوقع"}</small>
                 </div>)}

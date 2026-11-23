@@ -599,15 +599,23 @@ a.im-feature:hover {transform:translateY(-2px);border-color:#b6d0d6;}
 .im-track-source{font-size:.85rem;color:#60717d}
 .im-track-warning{color:#a44a23;font-weight:600}
 .im-track-map{margin:18px 0;border:1px solid #dde5e7;border-radius:12px;padding:16px}
-.im-track-map>div{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.im-track-map>div:first-child{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .im-track-map a{display:inline-flex;margin-top:10px}
 .im-track-map-frame{display:block;width:100%;height:260px;border:1px solid #d2dade;border-radius:10px;background:#f5f7fa}
 .im-voyage-map{position:relative;z-index:0;width:100%;height:365px;min-height:280px;margin-block:12px;border:1px solid #d2dade;border-radius:10px;overflow:hidden;background:#e8f0f2;direction:ltr}
+.im-voyage-map-credit{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:-5px;margin-bottom:9px;color:#637d88;font-size:11px;line-height:1.5;direction:rtl}
+.im-voyage-map-credit a{display:inline;margin-top:0;color:#3d6d7e;text-decoration:underline;text-underline-offset:2px}
 .im-voyage-map-legend{display:flex;flex-wrap:wrap;gap:13px;align-items:center;font-size:12px;color:#486678;line-height:1.8}
 .im-voyage-map-legend span{display:inline-flex;align-items:center;gap:6px}
 .im-map-legend-dot{display:inline-block;width:17px;height:4px;border-radius:4px;background:#0b7188}
 .im-map-current{background:#12a8c3}
 .im-map-future{background:repeating-linear-gradient(90deg,#93a5af 0,#93a5af 5px,transparent 5px,transparent 9px)}
+.im-track-grouping-note{font-size:11px;color:#537787;line-height:1.7}
+.im-track-event-main{flex:1;min-width:0}
+.im-track-event-associated{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;color:#657a85;font-size:11px}
+.im-track-container-pill{display:inline-flex;align-items:center;border:1px solid #dce8ee;border-radius:5px;padding:3px 7px;background:#f4f9fa;color:#31596e;font-size:11px;font-weight:600;white-space:nowrap}
+.im-track-more-containers>summary{cursor:pointer;color:#245b7b}
+.im-track-more-containers>div{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
 @media(max-width:650px){.im-voyage-map{height:280px}}
 .im-track-events{border-inline-start:2px solid #ccd7d8;margin-inline-start:12px;padding-inline-start:17px}
 .im-track-event{position:relative;display:flex;align-items:start;gap:10px;justify-content:space-between;padding:13px 0;border-bottom:1px solid #e5e9eb}

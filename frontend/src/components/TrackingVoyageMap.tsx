@@ -21,7 +21,9 @@ export default function TrackingVoyageMap({
     void import("leaflet").then(L=>{
       if(cancelled||!node.current)return;
       const map=L.map(node.current,{zoomControl:true,scrollWheelZoom:false,
-        attributionControl:true}).setView([25,32],3);
+        // Place mandatory OSM credit directly BELOW the map, instead of
+        // Leaflet's attribution links covering the voyage drawing.
+        attributionControl:false}).setView([25,32],3);
       cleanup=()=>map.remove();
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
         maxZoom:17,
@@ -73,6 +75,14 @@ export default function TrackingVoyageMap({
   return <>
     <div className="im-voyage-map" ref={node} role="img"
       aria-label="خريطة خط سير الشحنة وموانئ التوقف والموقع المرسل من ShipsGo"/>
+    <div className="im-voyage-map-credit" aria-label="مصدر بيانات الخريطة">
+      <span>بيانات الخريطة: © </span>
+      <a href="https://www.openstreetmap.org/copyright" target="_blank"
+        rel="noopener noreferrer">OpenStreetMap contributors</a>
+      <span> · </span>
+      <a href="https://www.openstreetmap.org/fixthemap" target="_blank"
+        rel="noopener noreferrer">الإبلاغ عن خطأ بالخريطة</a>
+    </div>
     <div className="im-voyage-map-legend">
       <span><i className="im-map-legend-dot im-map-past"/> مسار تم اجتيازه</span>
       <span><i className="im-map-legend-dot im-map-current"/> المسار أو الموقع الحالي</span>
