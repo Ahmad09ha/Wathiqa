@@ -65,6 +65,9 @@ services:
       OceanTracking__ShipsGoApiKey: "${WATHIQA_SHIPSGO_API_KEY:-}"
       OceanTracking__ShipsGoV2Token: "${WATHIQA_SHIPSGO_V2_TOKEN:-}"
       OceanTracking__ShipsGoWebhookSecret: "${WATHIQA_SHIPSGO_WEBHOOK_SECRET:-}"
+      # Detailed HTTP, sanitized SQL and outbound ShipsGo logs -> stdout only.
+      # May be disabled in Dokploy without changing database schema.
+      Diagnostics__ConsoleDetailed: "${WATHIQA_CONSOLE_LOGS_ENABLED:-true}"
       ReverseProxy__KnownProxies: ${WATHIQA_WEB_IP:?Set the exact frontend container IP}
       Documents__PrivateRoot: /var/lib/wathiqa/documents
       Documents__ClamScanExecutable: /usr/bin/clamscan

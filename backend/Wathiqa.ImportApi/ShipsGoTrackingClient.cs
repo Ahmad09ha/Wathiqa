@@ -18,7 +18,8 @@ public sealed class TrackingProviderException(string code, bool definitive = fal
 /// One paid activation per MBL, followed exclusively by free voyage GETs.
 /// Provider credentials are server-only and never included in error output.
 /// </summary>
-public sealed class ShipsGoTrackingClient(IConfiguration configuration, IHostEnvironment environment)
+public sealed class ShipsGoTrackingClient(IConfiguration configuration, IHostEnvironment environment,
+    ILogger<ShipsGoTrackingClient> logger, IHttpContextAccessor requestContext)
 {
     // ShipsGo credentials are transmitted as a GET query parameter. Never
     // follow a provider redirect that could forward that secret elsewhere.
@@ -152,13 +153,14 @@ public sealed class ShipsGoTrackingClient(IConfiguration configuration, IHostEnv
         !string.IsNullOrWhiteSpace(key)
           ? key : throw new TrackingProviderException("tracking_not_configured",true);
 
-    private static async Task<HttpResponseMessage> Send(HttpRequestMessage message,
+    private async Task<HttpResponseMessage> Send(HttpRequestMessage message,
         CancellationToken ct)
     {
         try
         {
-            var response = await Client.SendAsync(message,
-                HttpCompletionOption.ResponseHeadersRead,ct);
+            var response = await ProviderHttpConsoleLog.SendAsync(Client, message,
+                ct, logger, requestContext, "ShipsGoV1.2",
+                configuration.GetValue("Diagnostics:ConsoleDetailed", true));
             if (response.IsSuccessStatusCode) return response;
             var code = response.StatusCode switch
             {

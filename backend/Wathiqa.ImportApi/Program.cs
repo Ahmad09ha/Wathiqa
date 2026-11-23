@@ -16,6 +16,19 @@ using Npgsql;
 using Wathiqa.ImportApi;
 
 var builder = WebApplication.CreateBuilder(args);
+var detailedConsoleLogs = builder.Configuration.GetValue("Diagnostics:ConsoleDetailed", true);
+// Diagnostic output is stdout/stderr only (Rider console / Docker logs).
+// Never enable EF sensitive-data logging or write request logs to tables/files.
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz ";
+    options.SingleLine = true;
+    options.IncludeScopes = false;
+});
+// EF's own command failure logger can print raw SQL; our interceptor produces
+// the only SQL command output, with literals and parameter VALUES redacted.
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.None);
 var connection = builder.Configuration.GetConnectionString("ImportDatabase");
 if (string.IsNullOrWhiteSpace(connection))
     throw new InvalidOperationException("ConnectionStrings:ImportDatabase is required. Never use the old document-editor database.");
@@ -103,7 +116,14 @@ if (!string.IsNullOrWhiteSpace(keyPath))
 }
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddDbContext<ImportDb>(options => options.UseNpgsql(connection));
+builder.Services.AddSingleton<ConsoleSqlCommandInterceptor>();
+builder.Services.AddDbContext<ImportDb>((services, options) =>
+{
+    // Never log raw EF parameter values, even during development.
+    options.UseNpgsql(connection).EnableSensitiveDataLogging(false);
+    if (detailedConsoleLogs)
+        options.AddInterceptors(services.GetRequiredService<ConsoleSqlCommandInterceptor>());
+});
 builder.Services.AddSingleton<IUploadThreatScanner,ClamAvUploadThreatScanner>();
 builder.Services.AddSingleton<IPrivateDocumentStore,PrivateDocumentStore>();
 builder.Services.AddSingleton<ShipsGoTrackingClient>();
@@ -247,6 +267,11 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+// Match routes early so the HTTP log contains the endpoint TEMPLATE, not raw
+// customer IDs or token-bearing URL paths; cover auth/CSRF/HTTPS failures too.
+app.UseRouting();
+if (detailedConsoleLogs)
+    app.UseMiddleware<ConsoleRequestLoggingMiddleware>();
 // Force validation of private volume and AV configuration at startup, not
 // at the first uploaded file. Non-development deployments fail closed.
 _ = app.Services.GetRequiredService<IPrivateDocumentStore>();

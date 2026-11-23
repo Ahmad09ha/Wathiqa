@@ -11,7 +11,8 @@ namespace Wathiqa.ImportApi;
 /// remain distinguishable (unprefixed) so previously-paid shipments are not re-POSTed.
 /// Never send the token in a URL or expose it in an exception.
 /// </summary>
-public sealed class ShipsGoV2Client(IConfiguration configuration, IHostEnvironment environment)
+public sealed class ShipsGoV2Client(IConfiguration configuration, IHostEnvironment environment,
+    ILogger<ShipsGoV2Client> logger, IHttpContextAccessor requestContext)
 {
     private static readonly HttpClient Http = new(new HttpClientHandler { AllowAutoRedirect = false })
     { Timeout = TimeSpan.FromSeconds(25) };
@@ -358,7 +359,9 @@ public sealed class ShipsGoV2Client(IConfiguration configuration, IHostEnvironme
     {
         try
         {
-            var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            var response = await ProviderHttpConsoleLog.SendAsync(Http, request, ct,
+                logger, requestContext, "ShipsGoV2",
+                configuration.GetValue("Diagnostics:ConsoleDetailed", true));
             if (response.IsSuccessStatusCode ||
                 (allowDuplicate && response.StatusCode == HttpStatusCode.Conflict)) return response;
             var code = response.StatusCode switch

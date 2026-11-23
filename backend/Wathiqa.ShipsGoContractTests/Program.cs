@@ -3,6 +3,11 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Wathiqa.ImportApi;
 
 static void Check(bool condition, string name)
@@ -87,7 +92,8 @@ var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<str
 {
     ["OceanTracking:ShipsGoWebhookSecret"] = "SUPER_LONG_AND_SECURE_SECRET_KEY"
 }).Build();
-var client = new ShipsGoV2Client(config, new TestEnvironment());
+var client = new ShipsGoV2Client(config, new TestEnvironment(),
+    NullLogger<ShipsGoV2Client>.Instance, new Microsoft.AspNetCore.Http.HttpContextAccessor());
 var bytes = Encoding.UTF8.GetBytes("""{"message":"You shall not pass!"}""");
 Check(client.VerifyWebhook(bytes, "9527e0c9463e6f5b01a0af50aecb4658ff50c6b25d3efa8e5c8dea7e4b763772"),
       "official ShipsGo webhook HMAC-SHA256 test vector");
@@ -96,6 +102,45 @@ bytes[0] ^= 1;
 Check(!client.VerifyWebhook(bytes, "9527e0c9463e6f5b01a0af50aecb4658ff50c6b25d3efa8e5c8dea7e4b763772"),
       "tampered body rejected");
 
+var sql = SqlConsoleRedactor.Sanitize(
+    "SELECT * FROM \"Payments\" WHERE \"Email\"='private@example.com' " +
+    "AND \"Total\"=15894.27 AND \"TenantId\"=@__tenantId_0 -- password secret");
+Check(sql.Contains("SELECT * FROM \"Payments\"") &&
+      !sql.Contains("private@example.com") && !sql.Contains("15894.27") &&
+      !sql.Contains("password secret") && sql.Contains("@__tenantId_0"),
+      "SQL logger prints query structure but masks literals, numbers and comments");
+Check(SqlConsoleRedactor.Operation(sql) == "SELECT", "query operation classification");
+Check(SqlConsoleRedactor.Purpose(SqlConsoleRedactor.Operation(sql)) == "READ_RECORDS" &&
+      SqlConsoleRedactor.Purpose("UPDATE") == "UPDATE_RECORDS",
+      "query purpose explanation");
+var sqlSecrets = SqlConsoleRedactor.Sanitize(
+    "DO $function$ BEGIN RAISE NOTICE 'TOP_SECRET'; END $function$; " +
+    "SELECT 'alpha''beta', E'secret\\'value', $$hiddenkey$$");
+Check(!sqlSecrets.Contains("TOP_SECRET") && !sqlSecrets.Contains("alpha") &&
+      !sqlSecrets.Contains("hiddenkey"), "SQL log hides dollar-quoted and escaped literals");
+var requestContext = new DefaultHttpContext();
+requestContext.TraceIdentifier = "test-trace";
+requestContext.Request.Method = "POST";
+requestContext.Request.Path = "/api/orders/DO_NOT_PRINT/tracking";
+requestContext.Request.QueryString = new QueryString("?api_key=VERY_SECRET");
+requestContext.SetEndpoint(new RouteEndpoint(_ => Task.CompletedTask,
+    RoutePatternFactory.Parse("/api/orders/{id}/tracking"), 0, null, "tracking"));
+var requestLogs = new RecordingLogger<ConsoleRequestLoggingMiddleware>();
+var middleware = new ConsoleRequestLoggingMiddleware(ctx =>
+{
+    ((RequestSqlMetrics)ctx.Items[RequestSqlMetrics.ItemKey]!).Record(
+        TimeSpan.FromMilliseconds(4), false);
+    ctx.Response.StatusCode = 200;
+    return Task.CompletedTask;
+}, requestLogs);
+await middleware.InvokeAsync(requestContext);
+var requestSummary = requestLogs.Lines.Single();
+Check(requestSummary.Contains("test-trace") &&
+      requestSummary.Contains("/api/orders/{id}/tracking") &&
+      requestSummary.Contains("SqlCount=1") && requestSummary.Contains("StatusCode=200") &&
+      !requestSummary.Contains("DO_NOT_PRINT") && !requestSummary.Contains("VERY_SECRET"),
+      "HTTP logger prints route template/SQL summary without customer values or tokens");
+
 if (Environment.GetEnvironmentVariable("SHIPSGO_V2_HTTP_TEST") == "1")
 {
     var httpConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
@@ -103,7 +148,8 @@ if (Environment.GetEnvironmentVariable("SHIPSGO_V2_HTTP_TEST") == "1")
         ["OceanTracking:ShipsGoV2Token"] = "qa-v2-only",
         ["OceanTracking:ShipsGoV2TestBaseUrl"] = "http://127.0.0.1:5098/"
     }).Build();
-    var httpClient = new ShipsGoV2Client(httpConfig, new TestEnvironment());
+    var httpClient = new ShipsGoV2Client(httpConfig, new TestEnvironment(),
+        NullLogger<ShipsGoV2Client>.Instance, new Microsoft.AspNetCore.Http.HttpContextAccessor());
     var carriers = await httpClient.ListCarriersAsync(CancellationToken.None);
     Check(carriers.Count == 2 && carriers.Any(c => c.Scac == "SG_AKKN") &&
           !carriers.Any(c => c.Scac == "NSAU"), "HTTP carrier lookup and active filtering");
@@ -135,6 +181,21 @@ if (Environment.GetEnvironmentVariable("SHIPSGO_V2_HTTP_TEST") == "1")
     }
     catch (TrackingProviderException ex) { rejected = ex.Definitive; }
     Check(rejected, "invalid booking number rejected before paid POST");
+    var outgoingLogs = new RecordingLogger<ShipsGoV2Client>();
+    using var outgoingClient = new HttpClient();
+    using var outgoingRequest = new HttpRequestMessage(HttpMethod.Get,
+        "http://127.0.0.1:5098/ocean/shipments/123456?authCode=DONT_LOG_ME");
+    outgoingRequest.Headers.Accept.ParseAdd("application/json");
+    outgoingRequest.Headers.Add("X-Shipsgo-User-Token", "qa-v2-only");
+    using var outgoingResponse = await ProviderHttpConsoleLog.SendAsync(outgoingClient,
+        outgoingRequest, CancellationToken.None, outgoingLogs, new HttpContextAccessor(),
+        "ShipsGoV2");
+    Check(outgoingResponse.IsSuccessStatusCode &&
+          outgoingLogs.Lines.Count == 2 &&
+          outgoingLogs.Lines.All(x => x.Contains("/ocean/shipments/{shipment_id}")) &&
+          outgoingLogs.Lines.All(x => !x.Contains("DONT_LOG_ME")) &&
+          outgoingLogs.Lines.All(x => !x.Contains("qa-v2-only")),
+          "outbound HTTP logger masks shipment identifiers, URL secrets and auth token");
 }
 Console.WriteLine("SHIPSGO_V2_CONTRACT_TESTS_PASS");
 
@@ -144,4 +205,20 @@ sealed class TestEnvironment : IHostEnvironment
     public string ApplicationName { get; set; } = "ShipsGoV2ContractTests";
     public string ContentRootPath { get; set; } = ".";
     public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+}
+
+sealed class RecordingLogger<T> : ILogger<T>
+{
+    public List<string> Lines { get; } = [];
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull =>
+        EmptyScope.Instance;
+    public bool IsEnabled(LogLevel logLevel) => true;
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+        Exception? exception, Func<TState, Exception?, string> formatter) =>
+        Lines.Add(formatter(state, exception));
+    private sealed class EmptyScope : IDisposable
+    {
+        public static readonly EmptyScope Instance = new();
+        public void Dispose() { }
+    }
 }
