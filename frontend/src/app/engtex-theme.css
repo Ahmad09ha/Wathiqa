@@ -1,0 +1,363 @@
+﻿/*
+ * ENGTex-inspired Wathiqa product skin
+ * Brand colors from the supplied ENGTex reference: navy / turquoise / white.
+ * The import and platform applications share a shadcn-style design language,
+ * while keeping their independent authentication, Arabic RTL behavior and
+ * existing responsive layout contracts.
+ *
+ * Semantic warning/error colors intentionally remain amber/red.
+ */
+:root {
+  --eng-navy: #0a285a;
+  --eng-navy-2: #123f70;
+  --eng-navy-deep: #071d41;
+  /* Action teal is slightly deeper to keep white labels legible (AA). */
+  --eng-teal: #067f92;
+  --eng-teal-bright: #11b8c6;
+  --eng-teal-dark: #055f73;
+  --eng-ink: #102e50;
+  --eng-muted: #617b92;
+  --eng-line: #dae6f0;
+  --eng-bg: #f4f8fc;
+  --eng-surface: #ffffff;
+  --eng-soft: #eaf8fb;
+  --eng-shadow: 0 7px 28px rgba(10, 40, 90, .055);
+}
+
+.im-app, .pc-app {
+  background: radial-gradient(circle at 10% 5%, #e9f6fb 0, transparent 440px),
+              linear-gradient(160deg, #f8fbff 0%, var(--eng-bg) 45%, #f2f7fb 100%);
+  color: var(--eng-ink);
+}
+
+/* One navigation treatment for merchant and SuperAdmin, with distinct routes. */
+.im-sidebar, .pc-sidebar {
+  background: linear-gradient(172deg, #0b3164 0%, var(--eng-navy) 42%, #071d40 100%);
+  box-shadow: -7px 0 30px rgba(5, 22, 47, .12);
+  border-inline-start: 1px solid rgba(149, 218, 230, .12);
+  color: #edfaff;
+}
+.im-brand, .pc-brand {
+  border-color: rgba(132, 195, 217, .15);
+  min-height: 95px;
+}
+.im-brand-icon, .pc-brand-symbol, .im-login-brand .im-brand-icon,
+.pc-login-lockup > span, .im-mark {
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(96, 213, 227, .48);
+  border-radius: 13px;
+  background: rgba(15, 167, 185, .14);
+  color: #e2faff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+.im-brand small, .pc-brand small { color: #80b8d3; letter-spacing: .12em; }
+.im-company, .pc-operator-tag {
+  border-color: rgba(153, 206, 228, .13);
+}
+.im-company-monogram, .im-user-avatar, .pc-identity > span {
+  background: rgba(8, 154, 170, .18);
+  color: #85e4ed;
+  border: 1px solid rgba(60, 192, 211, .20);
+  border-radius: 11px;
+}
+.im-company strong, .im-user-identity strong,
+.pc-identity strong { color: #f0f9ff; }
+.im-company small, .im-user-identity small, .pc-identity small,
+.pc-operator-tag small { color: #a8bed4; }
+.pc-operator-tag, .pc-operator-tag strong { color: #77dfeb; }
+.im-nav-label, .pc-nav-hint { color: #83a8c3; font-weight: 700; }
+.im-nav, .pc-navigation nav { gap: 5px; }
+.im-nav-link, .pc-nav-link {
+  border-radius: 10px;
+  min-height: 46px;
+  color: #c9deee;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+.im-nav-link:hover, .pc-nav-link:hover {
+  background: rgba(72, 142, 182, .15);
+  border-color: rgba(140, 204, 230, .12);
+  color: #fff;
+}
+.im-nav-link.active, .pc-nav-link.active {
+  background: linear-gradient(95deg, rgba(12, 175, 192, .28), rgba(29, 88, 144, .2));
+  border-color: rgba(56, 195, 217, .32);
+  box-shadow: inset 3px 0 0 var(--eng-teal-bright);
+  color: #fff;
+}
+.im-nav-link.active svg, .pc-nav-link.active svg { color: #53e1ea; }
+.im-nav-upcoming, .pc-sidebar-message {
+  border-color: rgba(139, 201, 223, .2);
+  border-radius: 11px;
+  background: rgba(137, 196, 219, .065);
+  color: #bed2e0;
+}
+.im-nav-upcoming svg, .pc-sidebar-message svg { color: #72dce6; }
+.im-sidebar-bottom, .pc-sidebar-end {
+  border-color: rgba(139, 201, 223, .2);
+  background: rgba(4, 18, 45, .14);
+}
+.im-logout, .pc-sidebar-end > button {
+  background: rgba(120, 179, 203, .12);
+  border-color: rgba(141, 204, 222, .24);
+  color: #e6f5fa;
+  border-radius: 9px;
+}
+.im-logout:hover, .pc-sidebar-end > button:hover { background: rgba(10, 174, 195, .25); }
+.im-access-type, .im-access-type.trial { color: #78dbe5; }
+
+/* Crisp, spacious surfaces and shared typography. */
+.im-header, .pc-header {
+  background: rgba(255, 255, 255, .97);
+  border-bottom: 1px solid var(--eng-line);
+  box-shadow: 0 2px 20px rgba(10, 40, 90, .025);
+  min-height: 110px;
+}
+.im-header h1, .pc-header h1, .im-page-intro h2, .pc-intro h2,
+.im-section-header h2, .im-section-header h3,
+.im-dashboard-group-head h2, .im-dashboard-activity-head h2 {
+  color: var(--eng-navy);
+  letter-spacing: -.035em;
+}
+.im-header h1, .pc-header h1 { font-size: clamp(23px, 2.1vw, 29px); }
+.im-heading p, .pc-header p, .im-page-intro p, .pc-intro p,
+.im-section-header p { color: var(--eng-muted); }
+.im-crumb, .pc-breadcrumb, .im-eyebrow, .pc-eyebrow { color: var(--eng-teal-dark); }
+.im-header-status, .pc-role-chip {
+  background: #eaf9fb;
+  border-color: #bfe7ed;
+  color: #087f92;
+  border-radius: 9999px;
+}
+.im-page-intro, .pc-intro {
+  border: 1px solid var(--eng-line);
+  border-radius: 16px;
+  background: linear-gradient(115deg, #fff 0%, #f6fcff 100%);
+  box-shadow: var(--eng-shadow);
+  position: relative;
+  overflow: hidden;
+}
+.im-page-intro::before, .pc-intro::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 4px;
+  background: var(--eng-teal);
+}
+.im-page-mark, .pc-intro-icon, .im-feature-icon,
+.im-order-section-no, .im-stat-card .im-stat-icon {
+  border: 1px solid #cfeaf0;
+  background: #e8f8fb;
+  color: #067e93;
+  border-radius: 11px;
+}
+.im-feature, .im-order-form-section, .im-order-line, .im-doc-row,
+.im-documents, .im-doc-check-row, .im-logistics, .im-table-shell,
+.im-track, .im-permission-editor, .im-file-preview, .im-file-workspace-main,
+.im-reference-inline-editor, .pc-panel, .pc-stat,
+.pc-subscription-status, .pc-current-value,
+.im-dashboard-panel, .im-dashboard-activity, .im-stat-card {
+  background: var(--eng-surface);
+  border-color: var(--eng-line);
+  border-radius: 14px;
+  box-shadow: var(--eng-shadow);
+}
+.im-feature, .im-stat-card, .pc-stat {
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+a.im-feature:hover, a.im-stat-card:hover {
+  border-color: #8fd3df;
+  box-shadow: 0 12px 30px rgba(9, 88, 140, .10);
+  transform: translateY(-2px);
+}
+.im-feature strong, .im-doc-row-main strong, .im-order-section-title h2,
+.pc-panel-heading h3, .im-stat-card strong, .pc-stat > strong {
+  color: var(--eng-navy);
+}
+
+/* Buttons, form controls and shadcn-compatible feedback. */
+.im-app .btn.primary, .im-login-page .btn.primary, .pc-app .btn.primary,
+.im-app .im-file-tabs button.active, .im-app .im-reference-tabs button.active,
+.im-app .im-logistics-tab.active, .im-app .im-reference-inline-editor button:first-child,
+.pc-app .pc-primary, .pc-login-shell .pc-primary {
+  background: var(--eng-teal);
+  border-color: var(--eng-teal);
+  color: #ffffff;
+}
+.im-app .btn.primary:hover:not(:disabled),
+.im-login-page .btn.primary:hover:not(:disabled),
+.pc-app .pc-primary:hover:not(:disabled),
+.pc-login-shell .pc-primary:hover:not(:disabled) {
+  background: var(--eng-teal-dark);
+  border-color: var(--eng-teal-dark);
+}
+.im-app .btn, .pc-app .pc-secondary, .pc-app .pc-text-action,
+.pc-app .pc-pager button, .im-login-page .btn {
+  border-radius: 9px;
+}
+.im-app :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea),
+.pc-app :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea),
+.im-login-page input:not([type="hidden"]), .pc-login-shell input:not([type="hidden"]) {
+  border-color: #ccdde9;
+  border-radius: 9px;
+  background-color: #fff;
+  color: var(--eng-ink);
+}
+.im-app :is(input,select,textarea):focus-visible,
+.pc-app :is(input,select,textarea):focus-visible,
+.im-login-page input:focus-visible, .pc-login-shell input:focus-visible {
+  outline: 2px solid rgba(8, 154, 170, .45);
+  outline-offset: 1px;
+  border-color: #50bfcd;
+}
+.im-app input[type="checkbox"], .pc-app input[type="checkbox"],
+.im-app input[type="radio"], .pc-app input[type="radio"] {
+  accent-color: var(--eng-teal);
+}
+.im-app .im-info-strip, .pc-app .pc-note, .im-app .im-order-footer,
+.im-app .im-dashboard-footnote, .im-app .im-permission-hint {
+  background: #edf8fc;
+  border-color: #d3e8f0;
+  color: #315e77;
+  border-radius: 11px;
+}
+.im-app .im-pill, .pc-app .pc-status.active,
+.im-app .im-doc-check-status.satisfied {
+  background: #e1f6f9;
+  color: #087b8d;
+  border-radius: 9999px;
+}
+.im-table-scroll, .pc-table-wrap, .im-dashboard-money-scroll {
+  scrollbar-color: #a2c4d7 transparent;
+}
+.im-table thead, .pc-table thead, .im-dashboard-money th {
+  background: #f1f7fc;
+  color: #55758f;
+}
+.im-table td, .pc-table td, .im-dashboard-money td { border-color: #e8f0f6; }
+.im-table tbody tr:hover, .pc-table tbody tr:hover,
+.im-dashboard-money tbody tr:hover { background: #f6fbff; }
+.im-search, .pc-search-box { background: #f8fbfe; border-color: var(--eng-line); border-radius: 10px; }
+.im-logistics-tabs, .im-dashboard-filters, .im-doc-requirements { background: #f8fbff; }
+.im-logistics-tab, .im-file-tabs button, .im-reference-tabs button,
+.pc-subscription-actions button { border-radius: 9px; }
+.im-logistics-tab.active, .im-file-tabs button.active,
+.im-reference-tabs button.active, .pc-subscription-actions button.selected {
+  background: var(--eng-teal);
+  color: #fff;
+  border-color: var(--eng-teal);
+}
+.im-track-map, .im-file-preview-frame, .im-file-placeholder,
+.im-doc-preview, .im-doc-relink, .im-doc-upload-drop {
+  background: #f8fcff;
+  border-color: var(--eng-line);
+  border-radius: 12px;
+}
+.im-track-dot { background: var(--eng-teal); }
+.pc-subscription-status, .pc-current-value {
+  background: #f5fbfe;
+}
+
+/* Merchant dashboard: a hero matching the colors of the ENGTex yarn mark. */
+.im-dashboard-hero {
+  background: radial-gradient(circle at 16% 90%, rgba(12, 192, 207, .28), transparent 38%),
+              linear-gradient(112deg, #081d46 0%, #0a2d5e 58%, #0b6684 130%);
+  border: 1px solid rgba(87, 176, 205, .25);
+  border-radius: 18px;
+  box-shadow: 0 15px 44px rgba(10, 40, 90, .16);
+  color: #fff;
+  padding: clamp(23px, 3vw, 36px);
+}
+.im-dashboard-hero h2 { color: #f7fdff; }
+.im-dashboard-hero .im-eyebrow { color: #75e2e9; }
+.im-dashboard-hero p { color: #d0e5f0; }
+.im-dashboard-hero > div > small { color: #9ec8d8; }
+.im-dashboard-hero::after {
+  border-color: rgba(107, 218, 230, .22);
+  box-shadow: 0 0 0 34px rgba(58, 190, 216, .028),
+              0 0 0 73px rgba(58, 190, 216, .023);
+}
+.im-dashboard-actions select { color: var(--eng-navy); border-color: #b6dce9; }
+.im-dashboard-actions button {
+  background: #067f92;
+  border-color: #067f92;
+  color: white;
+  border-radius: 9px;
+}
+.im-dashboard-actions button:hover:not(:disabled) { background: #055f73; border-color: #055f73; }
+.im-stat-card .im-stat-icon { width: 38px; height: 38px; }
+.im-stat-card strong { color: var(--eng-navy); }
+.im-stat-card.im-stat-warning {
+  background: #fffdf8;
+  border-color: #f0dcc3;
+}
+.im-dashboard-trend .orders, .im-dashboard-progress-track .sea { background: var(--eng-teal); }
+.im-dashboard-trend .containers, .im-dashboard-progress-track .port { background: #3a6b9d; }
+.im-dashboard-progress-track .delivered { background: #087f92; }
+.im-dashboard-event-icon { background: #eaf7fb; color: #087f92; }
+.im-dashboard-activity-head > strong { background: #e9f8fb; border-color: #cfeaf0; color: #067f91; }
+
+/* Login experiences: brand architecture without altering authentication flows. */
+.im-login-page {
+  background: radial-gradient(circle at 0% 2%, rgba(12, 178, 198, .14), transparent 35%),
+              linear-gradient(155deg, #fbfdff 15%, #edf7fc 100%);
+  color: var(--eng-ink);
+}
+.im-login-intro h1 { color: var(--eng-navy); line-height: 1.36; }
+.im-login-intro h1::after {
+  content: "";
+  display: block;
+  width: 66px;
+  height: 5px;
+  border-radius: 20px;
+  margin-top: 24px;
+  background: linear-gradient(90deg, var(--eng-navy), var(--eng-teal));
+}
+.im-login-foot { color: #446e87; border-color: #d9e7ef; }
+.im-login-card, .pc-login-form {
+  border: 1px solid #d7e7f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 68px rgba(10, 40, 90, .09);
+}
+.im-login-card-icon, .pc-login-form-icon {
+  background: #e6f7fa;
+  border-color: #cfe9ef;
+  color: var(--eng-teal-dark);
+  border-radius: 12px;
+}
+.im-login-card h2, .pc-login-form h2 { color: var(--eng-navy); }
+.im-login-brand .im-brand-icon { background: var(--eng-navy); }
+.im-login-brand strong { color: var(--eng-navy); }
+.im-join-back { color: var(--eng-teal-dark); }
+.pc-login-shell { background: #f3f9fc; }
+.pc-login-intro {
+  background: radial-gradient(circle at 90% 80%, rgba(12, 193, 206, .22), transparent 44%),
+              linear-gradient(155deg, #071d43 0%, #0c356a 100%);
+  color: #f5fbff;
+}
+.pc-login-intro::after { border-color: rgba(119, 219, 226, .24); }
+.pc-login-lockup > span { background: rgba(11, 169, 189, .14); }
+.pc-login-message .pc-eyebrow, .pc-login-message h1 em,
+.pc-login-security { color: #75e5ee; }
+.pc-login-message > p { color: #bfdbeb; }
+.pc-back-to-merchant { color: #c6e9f0; }
+.pc-login-form-area { background: #f4f9fd; }
+.pc-login-form label { color: #31516e; }
+
+/* Preserve mobile drawer positioning and reduced-motion rules. */
+@media (max-width: 790px) {
+  .im-sidebar, .pc-sidebar { box-shadow: -15px 0 45px rgba(7, 29, 65, .25); }
+  .im-content, .pc-content { padding-inline: clamp(14px, 4vw, 24px); }
+  .im-page-intro, .pc-intro { padding: 22px; }
+}
+@media (max-width: 600px) {
+  .im-dashboard-hero { padding: 24px 19px; }
+  .im-login-page { padding-inline: 18px; }
+  .im-login-card, .pc-login-form { border-radius: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .im-feature, .im-stat-card, .pc-stat { transition: none; }
+}

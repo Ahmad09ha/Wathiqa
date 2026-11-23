@@ -1,0 +1,9 @@
+# Shell scripts and container configuration MUST retain LF line endings,
+# regardless of Windows core.autocrlf settings or Rider editor defaults.
+deploy/import/*.sh text eol=lf
+scripts/vps/*.sh text eol=lf
+deploy/import/Dockerfile* text eol=lf
+deploy/import/*.yml text eol=lf
+deploy/import/*.yaml text eol=lf
+deploy/import/.env.example text eol=lf
+.dockerignore text eol=lf

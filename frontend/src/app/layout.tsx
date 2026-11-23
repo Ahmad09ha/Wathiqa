@@ -5,20 +5,22 @@ import "@fontsource/ibm-plex-sans-arabic/600.css";
 import "@fontsource/ibm-plex-sans-arabic/700.css";
 import "@fontsource-variable/ibm-plex-sans/wght.css";
 import "lenis/dist/lenis.css";
+import "leaflet/dist/leaflet.css";
+import "./shadcn.css";
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
 import { ToastProvider } from "@/components/ToastProvider";
 
 export const metadata: Metadata = {
   title: {
-    default: "وثيقة | القوالب والمستندات",
+    default: "وثيقة | إدارة الاستيراد والمنصة",
     template: "%s | وثيقة"
   },
   applicationName: "وثيقة",
-  description: "وثيقة منصة عربية لتصميم القوالب، تحرير العقود، حفظ المستندات وتصديرها",
+  description: "وثيقة منصة عربية لإدارة الاستيراد والشحنات والمستندات، مع لوحة إدارة خاصة بالمنصة",
   openGraph: {
-    title: "وثيقة | القوالب والمستندات",
-    description: "قوالب قابلة للتخصيص ومستندات مستقلة في مساحة عمل عربية."
+    title: "وثيقة | إدارة الاستيراد",
+    description: "منصة عربية لإدارة طلبات الاستيراد والشحنات والمستندات."
   }
 };
 

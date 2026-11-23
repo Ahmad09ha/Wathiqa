@@ -1,6 +1,8 @@
 ﻿"use client";
 import { useEffect, useRef } from "react";
 import { AlertTriangle, X } from "lucide-react";
+import {Button} from "@/components/ui/button";
+import {Card} from "@/components/ui/card";
 
 export default function ConfirmDialog({
   open, title, description, pending, onCancel, onConfirm
@@ -24,18 +26,18 @@ export default function ConfirmDialog({
     <div className="dialog-backdrop" onMouseDown={event => {
       if (event.target === event.currentTarget && !pending) onCancel();
     }}>
-      <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
+       <Card className="dialog gap-0 py-0" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
         <div className="dialog-top">
           <span className="dialog-icon"><AlertTriangle size={23} /></span>
-          <button type="button" aria-label="إغلاق" className="icon-btn" onClick={onCancel} disabled={pending}><X size={19}/></button>
+           <Button type="button" variant="ghost" aria-label="إغلاق" className="icon-btn" onClick={onCancel} disabled={pending}><X size={19}/></Button>
         </div>
         <h2 id="confirm-title">{title}</h2>
         <p id="confirm-desc">{description}</p>
         <div className="dialog-actions">
-          <button className="btn" type="button" ref={cancelRef} onClick={onCancel} disabled={pending}>إلغاء</button>
-          <button className="btn danger" type="button" onClick={onConfirm} disabled={pending}>{pending ? "جارٍ الحذف..." : "نعم، احذف"}</button>
+           <Button variant="outline" className="btn" type="button" ref={cancelRef} onClick={onCancel} disabled={pending}>إلغاء</Button>
+           <Button variant="destructive" className="btn danger" type="button" onClick={onConfirm} disabled={pending}>{pending ? "جارٍ الحذف..." : "نعم، احذف"}</Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

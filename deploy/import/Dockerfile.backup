@@ -1,0 +1,11 @@
+# One-shot operator-triggered backup job. PostgreSQL and restic client only;
+# NO public port and no access to the legacy database.
+FROM postgres:18-bookworm
+USER root
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    --no-install-recommends restic openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY scripts/vps/backup-import.sh /opt/wathiqa/backup-import.sh
+COPY deploy/import/backup-entrypoint.sh /usr/local/bin/wathiqa-import-backup
+RUN chmod 0555 /usr/local/bin/wathiqa-import-backup /opt/wathiqa/backup-import.sh
+ENTRYPOINT ["/usr/local/bin/wathiqa-import-backup"]

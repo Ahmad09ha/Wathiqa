@@ -59,6 +59,7 @@ lcov.info
 # Local database backups and dump files (keep SQL source/migrations tracked)
 *.dump
 *.backup
+!deploy/import/Dockerfile.backup
 
 # Logs and temporary/debug output
 *.log

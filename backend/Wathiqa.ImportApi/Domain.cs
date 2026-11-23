@@ -1,0 +1,117 @@
+﻿using Microsoft.AspNetCore.Identity;
+
+namespace Wathiqa.ImportApi;
+
+public sealed class Tenant
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Slug { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    // Null means no automatic expiry. Non-null is a durable, absolute UTC
+    // entitlement deadline: redeployments and logins must never renew it.
+    public DateTime? AccessExpiresAtUtc { get; set; }
+    // Platform-only optimistic revision. Tenant business actions do not edit it.
+    public int PlatformRevision { get; set; } = 1;
+}
+
+public sealed class ImportUser : IdentityUser<Guid>
+{
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string DisplayName { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+    public bool CanManagePayments { get; set; }
+    // Null retains pre-rollout Staff access; non-null is a full allow-list.
+    public string? AccessPermissionsJson { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class TenantInvitation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public Guid CreatedById { get; set; }
+    public string Email { get; set; } = "";
+    public string TokenHash { get; set; } = "";
+    public string Role { get; set; } = "Staff";
+    public DateTime ExpiresAtUtc { get; set; }
+    public DateTime? UsedAtUtc { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class TenantCompany
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "Supplier";
+    // Non-financial trading-party profile. Supplier banking instructions
+    // are intentionally excluded until their read/write trust policy exists.
+    public string NameEn { get; set; } = "";
+    public string Country { get; set; } = "";
+    public string City { get; set; } = "";
+    public string Address { get; set; } = "";
+    public string ContactName { get; set; } = "";
+    public string Phone { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string TaxNo { get; set; } = "";
+    public string DefaultCurrency { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+}
+
+// New company mutations are appended to this tenant-scoped audit ledger.
+// We intentionally store only the party display name and category: private
+// contact/banking/tax details must not be duplicated into the activity feed.
+public sealed class TenantCompanyAudit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid ActorId { get; set; }
+    public string Action { get; set; } = "";
+    public string NameSnapshot { get; set; } = "";
+    public string TypeSnapshot { get; set; } = "";
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+// Reusable tenant-owned port directory. Orders intentionally retain their
+// original loading/discharge TEXT snapshots for historical compatibility.
+public sealed class TenantPort
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = "";
+    public string NormalizedName { get; set; } = "";
+    public string Country { get; set; } = "";
+    public bool IsDeleted { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class TenantPortAudit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PortId { get; set; }
+    public Guid ActorId { get; set; }
+    public string Action { get; set; } = "";
+    public string NameSnapshot { get; set; } = "";
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class SecurityAudit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid ActorId { get; set; }
+    public Guid TargetUserId { get; set; }
+    public string Action { get; set; } = "";
+    public string PreviousValue { get; set; } = "";
+    public string NewValue { get; set; } = "";
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+}
